@@ -123,8 +123,8 @@
                     <li><strong>REGLAS ESPECIALES:</strong></li>
                     <li style="margin-left: 20px;">• Si DATOS columna C = "TOTAL" → Comisión al 100% (ignora % comercial)</li>
                     <li style="margin-left: 20px;">• Si DATOS columna C = "REPARTO" → Reduce % comercial a la mitad</li>
-                    <li>Se generarán <strong>subtotales por cada agente</strong> (SIN IVA y CON IVA)</li>
-                    <li>Al final: <strong>resumen completo</strong> con todos los agentes ordenados</li>
+                    <li>Los comerciales NO se separan si tienen la misma numeración</li>
+                    <li>Subtotales se muestran en columna B con totales en columna E</li>
                 </ul>
             </div>
             
@@ -198,8 +198,8 @@
                 const datosRaw = XLSX.utils.sheet_to_json(datosSheet, { header: 1 });
                 const comisionesRaw = XLSX.utils.sheet_to_json(comisionesSheet, { header: 1 });
                 
-                // Mapas - AHORA INCLUYE COLUMNA C (TIPO)
-                const fees = {}; // { tarifa: { fee: X, tipo: 'TOTAL'/'REPARTO'/null } }
+                // Mapas
+                const fees = {};
                 for (let i = 1; i < datosRaw.length; i++) {
                     if (datosRaw[i][0]) {
                         const tarifa = String(datosRaw[i][0]).toUpperCase().trim();
@@ -216,12 +216,8 @@
                     }
                 }
                 
-                console.log('Tarifas con tipo cargadas:', Object.keys(fees).length);
-                console.log('Comerciales cargados:', Object.keys(coms).length);
-                
                 const processed = [];
-                let totalContador = 0;
-                let repartoContador = 0;
+                let totalContador = 0, repartoContador = 0;
                 
                 facturaData.forEach(r => {
                     const comercial = r['Comercial'] || r['Identidad'] || '';
@@ -231,7 +227,6 @@
                     
                     const grupoU = String(grupo).toUpperCase().trim();
                     
-                    // Buscar FEE y TIPO
                     let feeData = fees[grupoU] || { fee: 0, tipo: null };
                     if (feeData.fee === 0) {
                         for (let k in fees) {
@@ -249,7 +244,6 @@
                     const fee = feeData.fee;
                     const tipo = feeData.tipo;
                     
-                    // Buscar % comercial
                     const comercialU = String(comercial).toUpperCase().trim();
                     let pct = coms[comercialU] || 0;
                     if (!pct) {
@@ -261,13 +255,12 @@
                         }
                     }
                     
-                    // APLICAR REGLAS ESPECIALES
                     let pctFinal = pct;
                     if (tipo === 'TOTAL') {
-                        pctFinal = 1.0; // 100%
+                        pctFinal = 1.0;
                         totalContador++;
                     } else if (tipo === 'REPARTO') {
-                        pctFinal = pct / 2; // Reducir a la mitad
+                        pctFinal = pct / 2;
                         repartoContador++;
                     }
                     
@@ -304,17 +297,12 @@
                     });
                 });
                 
-                console.log('Tarifas TOTAL aplicadas:', totalContador);
-                console.log('Tarifas REPARTO aplicadas:', repartoContador);
-                
-                processed.sort((a, b) => {
-                    const c = a._ag.localeCompare(b._ag);
-                    return c !== 0 ? c : (parseInt(a._num) || 0) - (parseInt(b._num) || 0);
-                });
+                // ORDENAR SOLO POR AGENTE (sin separar por número)
+                processed.sort((a, b) => a._ag.localeCompare(b._ag));
                 
                 processed.forEach(r => { delete r._ag; delete r._num; });
                 
-                // Agrupar por agente
+                // Agrupar por agente (todos juntos, no separar)
                 const groups = {};
                 processed.forEach(r => {
                     const ag = r['Agente'];
@@ -325,8 +313,10 @@
                 const final = [];
                 const resumen = [];
                 
-                Object.keys(groups).forEach(ag => {
+                Object.keys(groups).sort().forEach(ag => {
                     const rows = groups[ag];
+                    
+                    // Añadir todas las filas del agente SIN SEPARAR
                     rows.forEach(r => final.push(r));
                     
                     const sub = rows.reduce((s, r) => s + (r['Comisión'] || 0), 0);
@@ -334,25 +324,57 @@
                     
                     resumen.push({ agente: ag, subtotal: sub });
                     
-                    final.push({}, {});
-                    final.push({ 'Comisión': `SUBTOTAL ${ag}:`, 'Importe Base': sub.toFixed(2) });
-                    final.push({ 'Comisión': `SUBTOTAL CON IVA ${ag}:`, 'Importe Base': subIVA.toFixed(2) });
-                    final.push({}, {});
+                    // Añadir líneas vacías
+                    final.push({});
+                    final.push({});
+                    
+                    // SUBTOTAL en columna B (Agente), valor en columna E (Comisión)
+                    final.push({
+                        'X': '',
+                        'Agente': 'SUBTOTAL ' + ag,
+                        'Tipo Comision': '',
+                        'Fecha': '',
+                        'Comisión': sub.toFixed(2)
+                    });
+                    
+                    // SUBTOTAL CON IVA en columna B, valor en columna E
+                    final.push({
+                        'X': '',
+                        'Agente': 'SUBTOTAL CON IVA ' + ag,
+                        'Tipo Comision': '',
+                        'Fecha': '',
+                        'Comisión': subIVA.toFixed(2)
+                    });
+                    
+                    final.push({});
+                    final.push({});
                 });
                 
                 const total = resumen.reduce((s, a) => s + a.subtotal, 0);
                 const totalIVA = total * 1.21;
                 
-                final.push({}, { 'Comisión': '=== RESUMEN POR AGENTE (SIN IVA) ===' }, {});
+                final.push({});
+                final.push({ 'Agente': '=== RESUMEN POR AGENTE (SIN IVA) ===' });
+                final.push({});
                 
                 resumen.sort((a, b) => b.subtotal - a.subtotal);
                 resumen.forEach(i => {
-                    final.push({ 'Comisión': i.agente, 'Numero': i.subtotal.toFixed(2) + ' €' });
+                    final.push({ 
+                        'Agente': i.agente,
+                        'Comisión': i.subtotal.toFixed(2) + ' €'
+                    });
                 });
                 
-                final.push({}, {});
-                final.push({ 'Comisión': 'TOTAL GENERAL:', 'Numero': total.toFixed(2) + ' €' });
-                final.push({ 'Comisión': 'TOTAL GENERAL CON IVA:', 'Numero': totalIVA.toFixed(2) + ' €' });
+                final.push({});
+                final.push({});
+                final.push({ 
+                    'Agente': 'TOTAL GENERAL:',
+                    'Comisión': total.toFixed(2) + ' €'
+                });
+                final.push({ 
+                    'Agente': 'TOTAL GENERAL CON IVA:',
+                    'Comisión': totalIVA.toFixed(2) + ' €'
+                });
                 
                 const newWb = XLSX.utils.book_new();
                 const ws = XLSX.utils.json_to_sheet(final);
