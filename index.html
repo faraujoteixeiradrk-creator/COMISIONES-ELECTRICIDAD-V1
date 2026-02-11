@@ -6,6 +6,7 @@
     <title>Calculadora de Liquidaciones Comerciales</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -68,8 +69,10 @@
             border-radius: 50px;
             font-size: 1.1em;
             cursor: pointer;
-            margin: 5px;
+            margin: 10px;
+            transition: all 0.3s;
         }
+        .download-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.3); }
         .download-btn.secondary {
             background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
         }
@@ -134,8 +137,8 @@
                 <h3>📋 Funcionalidades:</h3>
                 <ul>
                     <li><strong>Fórmulas Excel</strong> en subtotales para verificación</li>
-                    <li><strong>Exportar todo</strong> → Un Excel completo con todos los comerciales</li>
-                    <li><strong>Exportar por comercial</strong> → Un ZIP con un Excel por cada comercial</li>
+                    <li><strong>Exportar todo</strong> → Un Excel completo</li>
+                    <li><strong>Exportar por comercial</strong> → Un ZIP con archivos separados</li>
                     <li><strong>INDEX PLUS</strong> → TOTAL (100%) | <strong>Resto</strong> → REPARTO</li>
                 </ul>
             </div>
@@ -166,7 +169,8 @@
             <div class="download-section" id="downloadSection">
                 <h2>✅ Procesamiento Completado</h2>
                 <p style="margin: 15px 0;">Elige cómo descargar:</p>
-                <button class="download-btn" id="downloadBtn">📥 Descargar Todo (1 Excel completo)</button>
+                <button class="download-btn" id="downloadBtn">📥 Descargar Todo (Excel completo)</button>
+                <br>
                 <button class="download-btn secondary" id="downloadByComercialBtn">📦 Descargar por Comercial (ZIP)</button>
             </div>
         </div>
@@ -416,14 +420,12 @@
                     groups[numCom].push(r);
                 });
                 
-                // Guardar para exportación por comercial
                 processedDataByGroup = groups;
                 allProcessedData = { numeroComercialMap, tarifasNoEncontradas };
                 
-                // Crear Excel completo con fórmulas
                 const final = [];
                 const resumen = [];
-                let currentRow = 2; // Excel empieza en fila 1, pero tenemos headers
+                let currentRow = 2;
                 
                 Object.keys(groups).sort((a, b) => parseInt(a) - parseInt(b)).forEach(numCom => {
                     const rows = groups[numCom];
@@ -449,7 +451,6 @@
                     final.push({});
                     currentRow++;
                     
-                    // SUBTOTAL con fórmula
                     final.push({
                         'X': '',
                         'Agente': 'SUBTOTAL ' + nombrePrincipal,
@@ -457,7 +458,6 @@
                     });
                     currentRow++;
                     
-                    // SUBTOTAL CON IVA con fórmula
                     final.push({
                         'X': '',
                         'Agente': 'SUBTOTAL CON IVA ' + nombrePrincipal,
@@ -513,7 +513,7 @@
                 `;
                 
                 document.getElementById('loading').style.display = 'none';
-                showStatus(`✅ ${processed.length} facturas procesadas en ${Object.keys(groups).length} grupos`, 'success');
+                showStatus(`✅ ${processed.length} facturas procesadas`, 'success');
                 document.getElementById('downloadSection').style.display = 'block';
                 
             } catch (error) {
@@ -529,69 +529,81 @@
             showStatus('✅ Excel completo descargado', 'success');
         }
         
-        async function downloadByComercial() {
-            if (!processedDataByGroup) return;
+        function downloadByComercial() {
+            if (!processedDataByGroup) {
+                showStatus('❌ No hay datos procesados', 'error');
+                return;
+            }
             
-            showStatus('⏳ Generando archivos por comercial...', 'success');
-            
-            const zip = new JSZip();
-            const folder = zip.folder('Comisiones_Por_Comercial');
-            
-            const { numeroComercialMap } = allProcessedData;
-            
-            Object.keys(processedDataByGroup).sort((a, b) => parseInt(a) - parseInt(b)).forEach(numCom => {
-                const rows = processedDataByGroup[numCom];
-                const nombresGrupo = numeroComercialMap[numCom] ? numeroComercialMap[numCom].nombres : [];
-                const nombrePrincipal = nombresGrupo.length > 0 ? nombresGrupo[0] : 'Comercial_' + numCom;
+            try {
+                console.log('Iniciando generación de ZIP...');
+                showStatus('⏳ Generando ZIP con archivos por comercial...', 'success');
                 
-                const comercialData = [];
-                let currentRow = 2;
-                const startRow = currentRow;
+                const zip = new JSZip();
+                const { numeroComercialMap } = allProcessedData;
                 
-                rows.forEach(r => {
-                    const cleanRow = { ...r };
-                    delete cleanRow._numComercial;
-                    delete cleanRow._agente;
-                    comercialData.push(cleanRow);
+                Object.keys(processedDataByGroup).sort((a, b) => parseInt(a) - parseInt(b)).forEach(numCom => {
+                    const rows = processedDataByGroup[numCom];
+                    const nombresGrupo = numeroComercialMap[numCom] ? numeroComercialMap[numCom].nombres : [];
+                    const nombrePrincipal = nombresGrupo.length > 0 ? nombresGrupo[0] : 'Comercial_' + numCom;
+                    
+                    const comercialData = [];
+                    let currentRow = 2;
+                    const startRow = currentRow;
+                    
+                    rows.forEach(r => {
+                        const cleanRow = { ...r };
+                        delete cleanRow._numComercial;
+                        delete cleanRow._agente;
+                        comercialData.push(cleanRow);
+                        currentRow++;
+                    });
+                    
+                    const endRow = currentRow - 1;
+                    
+                    comercialData.push({});
                     currentRow++;
+                    comercialData.push({});
+                    currentRow++;
+                    
+                    comercialData.push({
+                        'X': '',
+                        'Agente': 'SUBTOTAL ' + nombrePrincipal,
+                        'Comisión': { f: `SUM(E${startRow}:E${endRow})` }
+                    });
+                    currentRow++;
+                    
+                    comercialData.push({
+                        'X': '',
+                        'Agente': 'SUBTOTAL CON IVA ' + nombrePrincipal,
+                        'Comisión': { f: `1.21*SUM(E${startRow}:E${endRow})` }
+                    });
+                    
+                    const wb = XLSX.utils.book_new();
+                    const ws = XLSX.utils.json_to_sheet(comercialData, { cellFormula: true });
+                    XLSX.utils.book_append_sheet(wb, ws, nombrePrincipal.substring(0, 31));
+                    
+                    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                    const fileName = `${String(numCom).padStart(2, '0')}_${nombrePrincipal.replace(/[^a-zA-Z0-9-]/g, '_')}.xlsx`;
+                    
+                    console.log('Añadiendo archivo:', fileName);
+                    zip.file(fileName, wbout);
                 });
                 
-                const endRow = currentRow - 1;
-                
-                comercialData.push({});
-                currentRow++;
-                comercialData.push({});
-                currentRow++;
-                
-                comercialData.push({
-                    'X': '',
-                    'Agente': 'SUBTOTAL ' + nombrePrincipal,
-                    'Comisión': { f: `SUM(E${startRow}:E${endRow})` }
-                });
-                currentRow++;
-                
-                comercialData.push({
-                    'X': '',
-                    'Agente': 'SUBTOTAL CON IVA ' + nombrePrincipal,
-                    'Comisión': { f: `1.21*SUM(E${startRow}:E${endRow})` }
+                console.log('Generando blob...');
+                zip.generateAsync({ type: 'blob' }).then(function(content) {
+                    console.log('Descargando ZIP...');
+                    saveAs(content, 'Comisiones_Por_Comercial_' + new Date().toISOString().split('T')[0] + '.zip');
+                    showStatus('✅ ZIP descargado correctamente', 'success');
+                }).catch(function(err) {
+                    console.error('Error generando ZIP:', err);
+                    showStatus('❌ Error generando ZIP: ' + err.message, 'error');
                 });
                 
-                const wb = XLSX.utils.book_new();
-                const ws = XLSX.utils.json_to_sheet(comercialData, { cellFormula: true });
-                XLSX.utils.book_append_sheet(wb, ws, nombrePrincipal);
-                
-                const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-                const fileName = `${numCom}_${nombrePrincipal.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
-                folder.file(fileName, wbout);
-            });
-            
-            const content = await zip.generateAsync({ type: 'blob' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(content);
-            link.download = 'Comisiones_Por_Comercial_' + new Date().toISOString().split('T')[0] + '.zip';
-            link.click();
-            
-            showStatus('✅ ZIP con archivos por comercial descargado', 'success');
+            } catch (error) {
+                console.error('Error:', error);
+                showStatus('❌ Error: ' + error.message, 'error');
+            }
         }
     </script>
 </body>
