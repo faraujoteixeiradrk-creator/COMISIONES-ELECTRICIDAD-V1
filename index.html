@@ -63,6 +63,7 @@
         .status { margin-top: 20px; padding: 15px; border-radius: 10px; display: none; }
         .status.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; display: block; }
         .status.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; display: block; }
+        .status.warning { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; display: block; }
         .download-section { display: none; text-align: center; margin-top: 30px; padding: 30px; background: #f8f9ff; border-radius: 15px; }
         .download-btn {
             background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
@@ -74,6 +75,7 @@
             cursor: pointer;
             transition: all 0.3s;
             box-shadow: 0 4px 15px rgba(17, 153, 142, 0.4);
+            margin: 5px;
         }
         .download-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(17, 153, 142, 0.6); }
         .loading { text-align: center; padding: 20px; display: none; }
@@ -112,28 +114,35 @@
         }
         .stat-card h3 { font-size: 2em; margin-bottom: 5px; }
         .stat-card p { opacity: 0.9; font-size: 0.9em; }
-        .drag-icon {
-            font-size: 3em;
-            margin-bottom: 10px;
+        .drag-icon { font-size: 3em; margin-bottom: 10px; }
+        .missing-tariffs {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+            display: none;
         }
+        .missing-tariffs h4 { color: #856404; margin-bottom: 10px; }
+        .missing-tariffs ul { margin-left: 20px; color: #856404; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>💼 Calculadora de Liquidaciones Comerciales</h1>
-            <p>Agrupación por Número de Comercial</p>
+            <p>Agrupación por Número de Comercial con detección de tarifas</p>
         </div>
         
         <div class="content">
             <div class="instructions">
-                <h3>📋 Instrucciones:</h3>
+                <h3>📋 Reglas de Cálculo:</h3>
                 <ul>
-                    <li><strong>Agrupación por Número de Comercial (Columna B de COMISIONES)</strong></li>
-                    <li>Todos los agentes con el mismo número se unifican en un solo grupo</li>
-                    <li>Se muestran todas las facturas del grupo juntas</li>
-                    <li>Al final del grupo: SUBTOTAL y SUBTOTAL CON IVA</li>
-                    <li>Resumen final con todos los grupos</li>
+                    <li><strong>Buscar tarifa exacta</strong> en hoja DATOS (Columna A)</li>
+                    <li><strong>Si no existe:</strong> Buscar patrones DRK, FIJO, RUNNING, Indexada, INDEX PLUS</li>
+                    <li><strong>Columna C de DATOS:</strong> "TOTAL" = 100% | "REPARTO" = % de COMISIONES</li>
+                    <li><strong>Fórmula visible</strong> en columna Comisión para seguimiento</li>
+                    <li><strong>Tarifas no encontradas:</strong> Se exportan en hoja separada</li>
                 </ul>
             </div>
             
@@ -151,11 +160,18 @@
             </div>
             
             <div class="status" id="status"></div>
+            
+            <div class="missing-tariffs" id="missingTariffs">
+                <h4>⚠️ Tarifas no encontradas:</h4>
+                <ul id="missingList"></ul>
+                <p style="margin-top: 10px;"><strong>Se ha creado una hoja "TARIFAS_NO_ENCONTRADAS" en el Excel exportado</strong></p>
+            </div>
+            
             <div id="statsContainer"></div>
             
             <div class="download-section" id="downloadSection">
                 <h2>✅ Procesamiento completado</h2>
-                <button class="download-btn" id="downloadBtn">📥 Descargar Excel</button>
+                <button class="download-btn" id="downloadBtn">📥 Descargar Excel con Comisiones</button>
             </div>
         </div>
     </div>
@@ -166,17 +182,11 @@
         const fileInput = document.getElementById('fileInput');
         const uploadSection = document.getElementById('uploadSection');
         
-        // Click en el área de subida
-        uploadSection.addEventListener('click', () => {
-            fileInput.click();
-        });
-        
-        // Selección de archivo
+        uploadSection.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', (e) => {
             if (e.target.files.length > 0) handleFile(e.target.files[0]);
         });
         
-        // Prevenir comportamiento por defecto del navegador
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             uploadSection.addEventListener(eventName, preventDefaults, false);
             document.body.addEventListener(eventName, preventDefaults, false);
@@ -187,7 +197,6 @@
             e.stopPropagation();
         }
         
-        // Efectos visuales de drag
         ['dragenter', 'dragover'].forEach(eventName => {
             uploadSection.addEventListener(eventName, () => {
                 uploadSection.classList.add('dragover');
@@ -200,12 +209,9 @@
             }, false);
         });
         
-        // Manejar drop
         uploadSection.addEventListener('drop', (e) => {
             const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                handleFile(files[0]);
-            }
+            if (files.length > 0) handleFile(files[0]);
         }, false);
         
         document.getElementById('downloadBtn').addEventListener('click', downloadFile);
@@ -218,7 +224,6 @@
         
         function formatearFecha(fecha) {
             if (!fecha) return '';
-            
             if (typeof fecha === 'string') {
                 if (fecha.includes('-')) {
                     const d = new Date(fecha);
@@ -231,14 +236,12 @@
                 }
                 return fecha;
             }
-            
             if (fecha instanceof Date && !isNaN(fecha.getTime())) {
                 const dia = String(fecha.getDate()).padStart(2, '0');
                 const mes = String(fecha.getMonth() + 1).padStart(2, '0');
                 const año = fecha.getFullYear();
                 return `${dia}/${mes}/${año}`;
             }
-            
             if (typeof fecha === 'number') {
                 const d = new Date((fecha - 25569) * 86400 * 1000);
                 const dia = String(d.getUTCDate()).padStart(2, '0');
@@ -246,13 +249,12 @@
                 const año = d.getUTCFullYear();
                 return `${dia}/${mes}/${año}`;
             }
-            
             return '';
         }
         
         function handleFile(file) {
             if (!file.name.match(/\.(xlsx|xls)$/)) {
-                showStatus('⚠️ Por favor, selecciona un archivo Excel válido (.xlsx o .xls)', 'error');
+                showStatus('⚠️ Por favor, selecciona un archivo Excel válido', 'error');
                 return;
             }
             
@@ -260,6 +262,7 @@
             document.getElementById('downloadSection').style.display = 'none';
             document.getElementById('statsContainer').innerHTML = '';
             document.getElementById('status').style.display = 'none';
+            document.getElementById('missingTariffs').style.display = 'none';
             
             const reader = new FileReader();
             reader.onload = (e) => {
@@ -290,18 +293,20 @@
                 const datosRaw = XLSX.utils.sheet_to_json(datosSheet, { header: 1 });
                 const comisionesRaw = XLSX.utils.sheet_to_json(comisionesSheet, { header: 1 });
                 
-                // Mapas de tarifas
-                const fees = {};
+                // Procesar DATOS: Columna A=Tarifa, B=Comision, C=Tipo (TOTAL/REPARTO)
+                const tarifasMap = {};
                 for (let i = 1; i < datosRaw.length; i++) {
                     if (datosRaw[i][0]) {
                         const tarifa = String(datosRaw[i][0]).toUpperCase().trim();
-                        const fee = parseFloat(datosRaw[i][1]) || 0;
+                        const comision = parseFloat(datosRaw[i][1]) || 0;
                         const tipo = datosRaw[i][2] ? String(datosRaw[i][2]).toUpperCase().trim() : null;
-                        fees[tarifa] = { fee: fee, tipo: tipo };
+                        tarifasMap[tarifa] = { comision: comision, tipo: tipo };
                     }
                 }
                 
-                // Mapas de comerciales
+                console.log('Tarifas cargadas:', Object.keys(tarifasMap).length);
+                
+                // Procesar COMISIONES
                 const comercialesMap = {};
                 const numeroComercialMap = {};
                 
@@ -319,43 +324,65 @@
                         };
                         
                         if (!numeroComercialMap[numeroComercial]) {
-                            numeroComercialMap[numeroComercial] = {
-                                nombres: [],
-                                porcentaje: porcentaje
-                            };
+                            numeroComercialMap[numeroComercial] = { nombres: [], porcentaje: porcentaje };
                         }
                         numeroComercialMap[numeroComercial].nombres.push(agente);
                     }
                 }
                 
                 const processed = [];
+                const tarifasNoEncontradas = new Set();
                 let totalCont = 0, repartoCont = 0;
                 
                 facturaData.forEach(r => {
                     const comercial = r['Comercial'] || r['Identidad'] || '';
-                    const grupo = r['Grupo'] || '';
+                    const grupoOriginal = r['Grupo'] || '';
                     const consumo = parseFloat(r['Consumo'] || 0);
-                    if (!grupo || !consumo) return;
+                    if (!grupoOriginal || !consumo) return;
                     
-                    const grupoU = String(grupo).toUpperCase().trim();
+                    const grupo = String(grupoOriginal).toUpperCase().trim();
                     
-                    let feeData = fees[grupoU] || { fee: 0, tipo: null };
-                    if (feeData.fee === 0) {
-                        for (let k in fees) {
-                            if (grupoU.includes(k) || k.includes(grupoU)) {
-                                feeData = fees[k];
-                                break;
+                    // PASO 1: Buscar tarifa EXACTA
+                    let tarifaData = tarifasMap[grupo];
+                    let tarifaEncontrada = grupo;
+                    
+                    // PASO 2: Si no existe, buscar patrones especiales
+                    if (!tarifaData) {
+                        const patrones = ['DRK FIJO RUNNING', 'DRK FIJO', 'RUNNING', 'INDEXADA', 'INDEX PLUS', 'DRK'];
+                        
+                        for (let patron of patrones) {
+                            if (grupo.includes(patron)) {
+                                // Buscar en tarifasMap por coincidencia
+                                for (let key in tarifasMap) {
+                                    if (key.includes(patron) || grupo.includes(key)) {
+                                        tarifaData = tarifasMap[key];
+                                        tarifaEncontrada = key;
+                                        break;
+                                    }
+                                }
+                                if (tarifaData) break;
                             }
                         }
                     }
-                    if (feeData.fee === 0) {
-                        const m = grupo.match(/\b(\d+)\b/g);
-                        if (m) feeData = { fee: parseFloat(m[0]), tipo: null };
+                    
+                    // PASO 3: Si no se encuentra, extraer número del nombre
+                    let comision = 0;
+                    let tipo = null;
+                    
+                    if (tarifaData) {
+                        comision = tarifaData.comision;
+                        tipo = tarifaData.tipo;
+                    } else {
+                        // Intentar extraer número del nombre de la tarifa
+                        const match = grupoOriginal.match(/\b(\d+)\b/g);
+                        if (match) {
+                            comision = parseFloat(match[0]);
+                        }
+                        // Añadir a tarifas no encontradas
+                        tarifasNoEncontradas.add(grupoOriginal);
                     }
                     
-                    const fee = feeData.fee;
-                    const tipo = feeData.tipo;
-                    
+                    // Buscar comercial
                     const comercialU = String(comercial).toUpperCase().trim();
                     let comercialInfo = comercialesMap[comercialU];
                     
@@ -373,18 +400,26 @@
                         return;
                     }
                     
-                    let pct = comercialInfo.porcentaje;
                     const numeroComercial = comercialInfo.numeroComercial;
+                    const pctComercial = comercialInfo.porcentaje;
+                    
+                    // APLICAR REGLA: TOTAL o REPARTO
+                    let pctFinal = pctComercial;
+                    let tipoAplicado = 'REPARTO';
                     
                     if (tipo === 'TOTAL') {
-                        pct = 1.0;
+                        pctFinal = 1.0;
+                        tipoAplicado = 'TOTAL';
                         totalCont++;
-                    } else if (tipo === 'REPARTO') {
-                        pct = pct / 2;
+                    } else {
                         repartoCont++;
                     }
                     
-                    const comision = (consumo / 1000) * fee * pct;
+                    const consumoMWh = consumo / 1000;
+                    const comisionCalculada = consumoMWh * comision * pctFinal;
+                    
+                    // FÓRMULA PARA MOSTRAR
+                    const formula = `=(${consumo}/1000)*${comision}*${pctFinal.toFixed(2)} [${tipoAplicado}]`;
                     
                     const sn = String(r['Serie/Numero'] || '');
                     let serie = '', numero = sn;
@@ -396,7 +431,7 @@
                         'Agente': comercial,
                         'Tipo Comision': 'Importe € kWh facturado',
                         'Fecha': '',
-                        'Comisión': parseFloat(comision.toFixed(2)),
+                        'Comisión': formula,
                         'Serie': serie,
                         'Numero': numero,
                         'Importe Base': consumo,
@@ -407,15 +442,29 @@
                         'Fecha Contratación': formatearFecha(r['Fecha Factura']),
                         'Fecha Desde': formatearFecha(r['Fecha Inicio Suministro']),
                         'Fecha Hasta': formatearFecha(r['Fecha Fin Suministro']),
-                        'Grupo': grupo,
+                        'Grupo': grupoOriginal,
                         'Cliente': r['Cliente'] || '',
                         'Dirección': r['Dirección'] || '',
                         'Tarifa Peaje': r['Tarifa Peaje'] || '',
                         'Tarifa': r['Tarifa'] || '',
                         '_numComercial': numeroComercial,
-                        '_agente': comercial
+                        '_agente': comercial,
+                        '_comisionNum': comisionCalculada
                     });
                 });
+                
+                // Mostrar tarifas no encontradas
+                if (tarifasNoEncontradas.size > 0) {
+                    const missingDiv = document.getElementById('missingTariffs');
+                    const missingList = document.getElementById('missingList');
+                    missingList.innerHTML = '';
+                    tarifasNoEncontradas.forEach(t => {
+                        const li = document.createElement('li');
+                        li.textContent = t;
+                        missingList.appendChild(li);
+                    });
+                    missingDiv.style.display = 'block';
+                }
                 
                 processed.sort((a, b) => {
                     const numComp = (a._numComercial || 0) - (b._numComercial || 0);
@@ -437,26 +486,23 @@
                     const rows = groups[numCom];
                     
                     rows.forEach(r => {
+                        const comisionNum = r._comisionNum;
                         delete r._numComercial;
                         delete r._agente;
+                        delete r._comisionNum;
                         final.push(r);
                     });
                     
-                    const sub = rows.reduce((s, r) => s + (r['Comisión'] || 0), 0);
+                    const sub = rows.reduce((s, r) => s + (r._comisionNum || 0), 0);
                     const subIVA = sub * 1.21;
                     
                     const nombresGrupo = numeroComercialMap[numCom] ? numeroComercialMap[numCom].nombres : [];
                     const nombrePrincipal = nombresGrupo.length > 0 ? nombresGrupo[0] : 'Comercial ' + numCom;
                     
-                    resumen.push({ 
-                        numeroComercial: numCom,
-                        nombre: nombrePrincipal,
-                        subtotal: sub 
-                    });
+                    resumen.push({ numeroComercial: numCom, nombre: nombrePrincipal, subtotal: sub });
                     
                     final.push({});
                     final.push({});
-                    
                     final.push({
                         'X': '',
                         'Agente': 'SUBTOTAL ' + nombrePrincipal,
@@ -464,7 +510,6 @@
                         'Fecha': '',
                         'Comisión': sub.toFixed(2)
                     });
-                    
                     final.push({
                         'X': '',
                         'Agente': 'SUBTOTAL CON IVA ' + nombrePrincipal,
@@ -472,7 +517,6 @@
                         'Fecha': '',
                         'Comisión': subIVA.toFixed(2)
                     });
-                    
                     final.push({});
                     final.push({});
                 });
@@ -495,31 +539,38 @@
                 
                 final.push({});
                 final.push({});
-                final.push({ 
-                    'Agente': 'TOTAL GENERAL:',
-                    'Comisión': total.toFixed(2) + ' €'
-                });
-                final.push({ 
-                    'Agente': 'TOTAL GENERAL CON IVA:',
-                    'Comisión': totalIVA.toFixed(2) + ' €'
-                });
+                final.push({ 'Agente': 'TOTAL GENERAL:', 'Comisión': total.toFixed(2) + ' €' });
+                final.push({ 'Agente': 'TOTAL GENERAL CON IVA:', 'Comisión': totalIVA.toFixed(2) + ' €' });
                 
+                // Crear workbook
                 const newWb = XLSX.utils.book_new();
                 const ws = XLSX.utils.json_to_sheet(final);
                 XLSX.utils.book_append_sheet(newWb, ws, 'Hoja1');
+                
+                // Añadir hoja de tarifas no encontradas
+                if (tarifasNoEncontradas.size > 0) {
+                    const tarifasFaltantes = Array.from(tarifasNoEncontradas).map(t => ({
+                        'Tarifa': t,
+                        'Comisión': '',
+                        'Tipo': 'REPARTO o TOTAL'
+                    }));
+                    const wsMissing = XLSX.utils.json_to_sheet(tarifasFaltantes);
+                    XLSX.utils.book_append_sheet(newWb, wsMissing, 'TARIFAS_NO_ENCONTRADAS');
+                }
+                
                 processedWorkbook = newWb;
                 
                 document.getElementById('statsContainer').innerHTML = `
                     <div class="stats">
                         <div class="stat-card"><h3>${processed.length}</h3><p>Facturas</p></div>
-                        <div class="stat-card"><h3>${Object.keys(groups).length}</h3><p>Números Comercial</p></div>
-                        <div class="stat-card"><h3>${total.toFixed(2)}€</h3><p>Total sin IVA</p></div>
-                        <div class="stat-card"><h3>${totalIVA.toFixed(2)}€</h3><p>Total con IVA</p></div>
+                        <div class="stat-card"><h3>${Object.keys(groups).length}</h3><p>Grupos</p></div>
+                        <div class="stat-card"><h3>${tarifasNoEncontradas.size}</h3><p>Tarifas no encontradas</p></div>
+                        <div class="stat-card"><h3>${total.toFixed(2)}€</h3><p>Total</p></div>
                     </div>
                 `;
                 
                 document.getElementById('loading').style.display = 'none';
-                showStatus(`✅ ${processed.length} facturas agrupadas en ${Object.keys(groups).length} números comerciales`, 'success');
+                showStatus(`✅ ${processed.length} facturas procesadas`, 'success');
                 document.getElementById('downloadSection').style.display = 'block';
                 
             } catch (error) {
