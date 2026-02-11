@@ -163,6 +163,44 @@
             s.className = 'status ' + type;
         }
         
+        function formatearFecha(fecha) {
+            if (!fecha) return '';
+            
+            // Si ya es una cadena, devolverla
+            if (typeof fecha === 'string') {
+                // Si tiene formato ISO, convertir a dd/mm/yyyy
+                if (fecha.includes('-')) {
+                    const d = new Date(fecha);
+                    if (!isNaN(d.getTime())) {
+                        const dia = String(d.getDate()).padStart(2, '0');
+                        const mes = String(d.getMonth() + 1).padStart(2, '0');
+                        const año = d.getFullYear();
+                        return `${dia}/${mes}/${año}`;
+                    }
+                }
+                return fecha;
+            }
+            
+            // Si es un objeto Date
+            if (fecha instanceof Date && !isNaN(fecha.getTime())) {
+                const dia = String(fecha.getDate()).padStart(2, '0');
+                const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+                const año = fecha.getFullYear();
+                return `${dia}/${mes}/${año}`;
+            }
+            
+            // Si es un número (fecha de Excel)
+            if (typeof fecha === 'number') {
+                const d = new Date((fecha - 25569) * 86400 * 1000);
+                const dia = String(d.getUTCDate()).padStart(2, '0');
+                const mes = String(d.getUTCMonth() + 1).padStart(2, '0');
+                const año = d.getUTCFullYear();
+                return `${dia}/${mes}/${año}`;
+            }
+            
+            return '';
+        }
+        
         function handleFile(file) {
             document.getElementById('loading').style.display = 'block';
             document.getElementById('downloadSection').style.display = 'none';
@@ -206,9 +244,9 @@
                     }
                 }
                 
-                // Mapas de comerciales: agente -> { numeroComercial, porcentaje, nombres }
+                // Mapas de comerciales
                 const comercialesMap = {};
-                const numeroComercialMap = {}; // numeroComercial -> { nombres: [], porcentaje }
+                const numeroComercialMap = {};
                 
                 for (let i = 1; i < comisionesRaw.length; i++) {
                     if (comisionesRaw[i][0]) {
@@ -223,7 +261,6 @@
                             nombreOriginal: agente
                         };
                         
-                        // Agrupar por número de comercial
                         if (!numeroComercialMap[numeroComercial]) {
                             numeroComercialMap[numeroComercial] = {
                                 nombres: [],
@@ -233,8 +270,6 @@
                         numeroComercialMap[numeroComercial].nombres.push(agente);
                     }
                 }
-                
-                console.log('Números de comercial encontrados:', Object.keys(numeroComercialMap).length);
                 
                 const processed = [];
                 let totalCont = 0, repartoCont = 0;
@@ -247,7 +282,6 @@
                     
                     const grupoU = String(grupo).toUpperCase().trim();
                     
-                    // Buscar FEE y TIPO
                     let feeData = fees[grupoU] || { fee: 0, tipo: null };
                     if (feeData.fee === 0) {
                         for (let k in fees) {
@@ -265,7 +299,6 @@
                     const fee = feeData.fee;
                     const tipo = feeData.tipo;
                     
-                    // Buscar comercial y su número
                     const comercialU = String(comercial).toUpperCase().trim();
                     let comercialInfo = comercialesMap[comercialU];
                     
@@ -286,7 +319,6 @@
                     let pct = comercialInfo.porcentaje;
                     const numeroComercial = comercialInfo.numeroComercial;
                     
-                    // Aplicar reglas especiales
                     if (tipo === 'TOTAL') {
                         pct = 1.0;
                         totalCont++;
@@ -315,9 +347,9 @@
                         'Fecha Activación': '',
                         'CUPS': r['CUPS'] || '',
                         'Identidad': r['Identidad'] || '',
-                        'Fecha Contratación': r['Fecha Factura'] ? String(r['Fecha Factura']) : '',
-                        'Fecha Desde': r['Fecha Inicio Suministro'] ? String(r['Fecha Inicio Suministro']) : '',
-                        'Fecha Hasta': r['Fecha Fin Suministro'] ? String(r['Fecha Fin Suministro']) : '',
+                        'Fecha Contratación': formatearFecha(r['Fecha Factura']),
+                        'Fecha Desde': formatearFecha(r['Fecha Inicio Suministro']),
+                        'Fecha Hasta': formatearFecha(r['Fecha Fin Suministro']),
                         'Grupo': grupo,
                         'Cliente': r['Cliente'] || '',
                         'Dirección': r['Dirección'] || '',
@@ -328,14 +360,12 @@
                     });
                 });
                 
-                // ORDENAR POR NÚMERO DE COMERCIAL
                 processed.sort((a, b) => {
                     const numComp = (a._numComercial || 0) - (b._numComercial || 0);
                     if (numComp !== 0) return numComp;
                     return a._agente.localeCompare(b._agente);
                 });
                 
-                // AGRUPAR POR NÚMERO DE COMERCIAL
                 const groups = {};
                 processed.forEach(r => {
                     const numCom = r._numComercial;
@@ -349,7 +379,6 @@
                 Object.keys(groups).sort((a, b) => parseInt(a) - parseInt(b)).forEach(numCom => {
                     const rows = groups[numCom];
                     
-                    // Añadir todas las filas del grupo
                     rows.forEach(r => {
                         delete r._numComercial;
                         delete r._agente;
@@ -359,7 +388,6 @@
                     const sub = rows.reduce((s, r) => s + (r['Comisión'] || 0), 0);
                     const subIVA = sub * 1.21;
                     
-                    // Obtener nombres de agentes del grupo
                     const nombresGrupo = numeroComercialMap[numCom] ? numeroComercialMap[numCom].nombres : [];
                     const nombrePrincipal = nombresGrupo.length > 0 ? nombresGrupo[0] : 'Comercial ' + numCom;
                     
@@ -372,7 +400,6 @@
                     final.push({});
                     final.push({});
                     
-                    // SUBTOTAL en columna B, valor en columna E
                     final.push({
                         'X': '',
                         'Agente': 'SUBTOTAL ' + nombrePrincipal,
