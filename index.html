@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Liquidaciones Comerciales</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .upload-section {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 30px;
+            background: #f8f9ff;
+            transition: all 0.3s;
+        }
+        
+        .upload-section:hover {
+            border-color: #764ba2;
+            background: #f0f2ff;
+        }
+        
+        .upload-section.dragover {
+            background: #e8ebff;
+            border-color: #764ba2;
+            transform: scale(1.02);
+        }
+        
+        input[type="file"] {
+            display: none;
+        }
+        
+        .upload-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 40px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            display: none;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+            display: block;
+        }
+        
+        .download-section {
+            display: none;
+            text-align: center;
+            margin-top: 30px;
+            padding: 30px;
+            background: #f8f9ff;
+            border-radius: 15px;
+        }
+        
+        .download-btn {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            padding: 15px 40px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(17, 153, 142, 0.4);
+            margin: 5px;
+        }
+        
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(17, 153, 142, 0.6);
+        }
+        
+        .preview {
+            margin-top: 30px;
+            overflow-x: auto;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            font-size: 0.9em;
+        }
+        
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 8px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.85em;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        tr:hover {
+            background: #f8f9ff;
+        }
+        
+        .total-row {
+            font-weight: bold;
+            background: #f0f2ff !important;
+        }
+        
+        .total-iva-row {
+            font-weight: bold;
+            background: #e8ebff !important;
+            color: #667eea;
+            font-size: 1.1em;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            display: none;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .instructions {
+            background: #fff9e6;
+            border-left: 4px solid #ffc107;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-radius: 5px;
+        }
+        
+        .instructions h3 {
+            color: #856404;
+            margin-bottom: 10px;
+        }
+        
+        .instructions ul {
+            margin-left: 20px;
+            color: #856404;
+        }
+        
+        .instructions li {
+            margin: 5px 0;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .stat-card h3 {
+            font-size: 2em;
+            margin-bottom: 5px;
+        }
+        
+        .stat-card p {
+            opacity: 0.9;
+            font-size: 0.9em;
+        }
+        
+        .comercial-group {
+            background: #e8ebff;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .number-cell {
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💼 Calculadora de Liquidaciones Comerciales</h1>
+            <p>Procesamiento automático de comisiones</p>
+        </div>
+        
+        <div class="content">
+            <div class="instructions">
+                <h3>📋 Instrucciones:</h3>
+                <ul>
+                    <li>Tu Excel debe contener 3 hojas: <strong>FACTURA TOTAL</strong>, <strong>DATOS</strong>, y <strong>COMISIONES</strong></li>
+                    <li>La hoja FACTURA TOTAL debe incluir: Identidad, Grupo, Consumo, Serie/Numero, etc.</li>
+                    <li>Hoja DATOS: Columna A = Tarifa, Columna B = FEE</li>
+                    <li>Hoja COMISIONES: Columna A = Comercial, Columna C = Porcentaje (ejemplo: 0.3 = 30%)</li>
+                    <li><strong>Fórmula:</strong> Comisión = (Consumo / 1000) × FEE × Porcentaje</li>
+                </ul>
+            </div>
+            
+            <div class="upload-section" id="uploadSection">
+                <h2>📤 Sube tu archivo Excel</h2>
+                <p style="margin: 20px 0; color: #666;">Arrastra y suelta tu archivo aquí o haz clic en el botón</p>
+                <label for="fileInput" class="upload-btn">Seleccionar Excel</label>
+                <input type="file" id="fileInput" accept=".xlsx,.xls">
+            </div>
+            
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p style="margin-top: 15px; color: #667eea;">Procesando archivo...</p>
+            </div>
+            
+            <div class="status" id="status"></div>
+            
+            <div id="statsContainer"></div>
+            
+            <div class="download-section" id="downloadSection">
+                <h2>✅ Procesamiento completado</h2>
+                <p style="margin: 15px 0;">Tus archivos de liquidaciones están listos</p>
+                <button class="download-btn" id="downloadBtnCompleto">📥 Descargar Excel Completo</button>
+                <button class="download-btn" id="downloadBtnResumen">📊 Descargar Resumen por Comercial</button>
+            </div>
+            
+            <div class="preview" id="preview"></div>
+        </div>
+    </div>
+
+    <script>
+        let processedWorkbook = null;
+        let resumenWorkbook = null;
+        
+        const fileInput = document.getElementById('fileInput');
+        const uploadSection = document.getElementById('uploadSection');
+        const loading = document.getElementById('loading');
+        const status = document.getElementById('status');
+        const downloadSection = document.getElementById('downloadSection');
+        const downloadBtnCompleto = document.getElementById('downloadBtnCompleto');
+        const downloadBtnResumen = document.getElementById('downloadBtnResumen');
+        const preview = document.getElementById('preview');
+        const statsContainer = document.getElementById('statsContainer');
+        
+        // Drag and drop
+        uploadSection.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadSection.classList.add('dragover');
+        });
+        
+        uploadSection.addEventListener('dragleave', () => {
+            uploadSection.classList.remove('dragover');
+        });
+        
+        uploadSection.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadSection.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+        
+        downloadBtnCompleto.addEventListener('click', () => downloadProcessedFile('completo'));
+        downloadBtnResumen.addEventListener('click', () => downloadProcessedFile('resumen'));
+        
+        function showStatus(message, type) {
+            status.textContent = message;
+            status.className = 'status ' + type;
+        }
+        
+        function handleFile(file) {
+            if (!file.name.match(/\.(xlsx|xls)$/)) {
+                showStatus('Por favor, selecciona un archivo Excel válido (.xlsx o .xls)', 'error');
+                return;
+            }
+            
+            loading.style.display = 'block';
+            downloadSection.style.display = 'none';
+            preview.innerHTML = '';
+            statsContainer.innerHTML = '';
+            status.style.display = 'none';
+            
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+                    
+                    processExcel(workbook);
+                } catch (error) {
+                    loading.style.display = 'none';
+                    showStatus('Error al leer el archivo: ' + error.message, 'error');
+                    console.error(error);
+                }
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+        
+        function extraerFEEdelNombre(nombreTarifa) {
+            // Buscar números en el nombre de la tarifa
+            const matches = nombreTarifa.match(/\b(\d+)\b/g);
+            if (matches && matches.length > 0) {
+                // Devolver el primer número encontrado
+                return parseFloat(matches[0]);
+            }
+            return 0;
+        }
+        
+        function processExcel(workbook) {
+            try {
+                const sheetNames = workbook.SheetNames;
+                
+                // Buscar las hojas necesarias (case-insensitive)
+                const facturaSheetName = sheetNames.find(name => 
+                    name.toUpperCase().includes('FACTURA') || name.toUpperCase().includes('TOTAL')
+                );
+                
+                const datosSheetName = sheetNames.find(name => 
+                    name.toUpperCase() === 'DATOS'
+                );
+                
+                const comisionesSheetName = sheetNames.find(name => 
+                    name.toUpperCase() === 'COMISIONES'
+                );
+                
+                if (!facturaSheetName) {
+                    throw new Error('No se encontró la hoja de facturas');
+                }
+                
+                if (!datosSheetName) {
+                    throw new Error('No se encontró la hoja "DATOS"');
+                }
+                
+                if (!comisionesSheetName) {
+                    throw new Error('No se encontró la hoja "COMISIONES"');
+                }
+                
+                const facturaSheet = workbook.Sheets[facturaSheetName];
+                const datosSheet = workbook.Sheets[datosSheetName];
+                const comisionesSheet = workbook.Sheets[comisionesSheetName];
+                
+                // Convertir a JSON
+                const facturaData = XLSX.utils.sheet_to_json(facturaSheet);
+                const datosRaw = XLSX.utils.sheet_to_json(datosSheet, { header: 1 });
+                const comisionesRaw = XLSX.utils.sheet_to_json(comisionesSheet, { header: 1 });
+                
+                // Procesar DATOS (saltar cabecera)
+                const feesMap = {};
+                for (let i = 1; i < datosRaw.length; i++) {
+                    const row = datosRaw[i];
+                    if (row[0]) {
+                        const tarifa = row[0].toString().toUpperCase().trim();
+                        const fee = parseFloat(row[1]) || 0;
+                        feesMap[tarifa] = fee;
+                    }
+                }
+                
+                // Procesar COMISIONES (saltar cabecera)
+                const comisionesMap = {};
+                for (let i = 1; i < comisionesRaw.length; i++) {
+                    const row = comisionesRaw[i];
+                    if (row[0]) {
+                        const comercial = row[0].toString().toUpperCase().trim();
+                        const porcentaje = parseFloat(row[2]) || 0;
+                        comisionesMap[comercial] = porcentaje;
+                    }
+                }
+                
+                console.log('FEEs cargados:', Object.keys(feesMap).length);
+                console.log('Comerciales cargados:', Object.keys(comisionesMap).length);
+                
+                // Procesar facturas
+                const processedData = [];
+                let erroresContador = 0;
+                
+                facturaData.forEach((row, idx) => {
+                    try {
+                        const identidad = row['Identidad'] || row['IDENTIDAD'] || '';
+                        const comercial = row['Comercial'] || row['COMERCIAL'] || '';
+                        const grupo = row['Grupo'] || row['GRUPO'] || '';
+                        const consumo = parseFloat(row['Consumo'] || row['CONSUMO'] || 0);
+                        const serieNumero = row['Serie/Numero'] || row['Serie/Número'] || row['SERIE/NUMERO'] || '';
+                        
+                        if (!grupo || consumo === 0) {
+                            return; // Saltar filas sin datos importantes
+                        }
+                        
+                        const consumoMWh = consumo / 1000;
+                        const grupoUpper = grupo.toString().toUpperCase().trim();
+                        
+                        // Buscar FEE
+                        let fee = 0;
+                        
+                        // 1. Buscar coincidencia exacta en DATOS
+                        if (feesMap[grupoUpper]) {
+                            fee = feesMap[grupoUpper];
+                        } 
+                        // 2. Buscar coincidencia parcial
+                        else {
+                            let encontrado = false;
+                            for (let tarifaKey in feesMap) {
+                                if (grupoUpper.includes(tarifaKey) || tarifaKey.includes(grupoUpper)) {
+                                    fee = feesMap[tarifaKey];
+                                    encontrado = true;
+                                    break;
+                                }
+                            }
+                            
+                            // 3. Si no se encuentra, extraer del nombre
+                            if (!encontrado) {
+                                fee = extraerFEEdelNombre(grupo);
+                            }
+                        }
+                        
+                        // Buscar comercial (puede estar en Identidad o en Comercial)
+                        let nombreComercial = comercial || identidad;
+                        const comercialUpper = nombreComercial.toString().toUpperCase().trim();
+                        
+                        // Buscar porcentaje
+                        let porcentaje = 0;
+                        if (comisionesMap[comercialUpper]) {
+                            porcentaje = comisionesMap[comercialUpper];
+                        } else {
+                            // Buscar coincidencia parcial
+                            for (let comercialKey in comisionesMap) {
+                                if (comercialUpper.includes(comercialKey) || comercialKey.includes(comercialUpper)) {
+                                    porcentaje = comisionesMap[comercialKey];
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        // Calcular comisión
+                        const comision = consumoMWh * fee * porcentaje;
+                        
+                        // Crear fila procesada
+                        const processedRow = {
+                            'Comercial': nombreComercial,
+                            'Serie/Número': serieNumero,
+                            'Cliente': row['Cliente'] || row['CLIENTE'] || '',
+                            'CUPS': row['CUPS'] || '',
+                            'Grupo/Tarifa': grupo,
+                            'Consumo': consumo,
+                            'Consumo MWh': parseFloat(consumoMWh.toFixed(3)),
+                            'FEE': fee,
+                            'Porcentaje %': (porcentaje * 100).toFixed(0) + '%',
+                            'COMISIÓN €': parseFloat(comision.toFixed(2))
+                        };
+                        
+                        // Copiar otras columnas relevantes
+                        if (row['Fecha Factura']) processedRow['Fecha Factura'] = row['Fecha Factura'];
+                        if (row['Importe Total']) processedRow['Importe Total'] = row['Importe Total'];
+                        
+                        processedData.push(processedRow);
+                        
+                    } catch (error) {
+                        erroresContador++;
+                        console.error('Error en fila ' + (idx + 2) + ':', error);
+                    }
+                });
+                
+                if (processedData.length === 0) {
+                    throw new Error('No se pudo procesar ninguna fila. Verifica la estructura del Excel.');
+                }
+                
+                // Ordenar por comercial y serie/número
+                processedData.sort((a, b) => {
+                    const comercialCompare = (a['Comercial'] || '').localeCompare(b['Comercial'] || '');
+                    if (comercialCompare !== 0) return comercialCompare;
+                    return (a['Serie/Número'] || '').toString().localeCompare((b['Serie/Número'] || '').toString());
+                });
+                
+                // Calcular totales
+                const totalComisiones = processedData.reduce((sum, row) => sum + (row['COMISIÓN €'] || 0), 0);
+                const totalConIVA = totalComisiones * 1.21;
+                
+                // Crear Excel completo
+                const newWb = XLSX.utils.book_new();
+                const wsData = XLSX.utils.json_to_sheet(processedData);
+                
+                // Añadir totales
+                const range = XLSX.utils.decode_range(wsData['!ref']);
+                const lastRow = range.e.r;
+                
+                XLSX.utils.sheet_add_aoa(wsData, [[]], { origin: lastRow + 2 });
+                XLSX.utils.sheet_add_aoa(wsData, [[]], { origin: lastRow + 3 });
+                XLSX.utils.sheet_add_aoa(wsData, [['', '', '', '', '', '', '', '', 'TOTAL:', totalComisiones.toFixed(2)]], { origin: lastRow + 4 });
+                XLSX.utils.sheet_add_aoa(wsData, [['', '', '', '', '', '', '', '', 'TOTAL con IVA:', totalConIVA.toFixed(2)]], { origin: lastRow + 5 });
+                
+                XLSX.utils.book_append_sheet(newWb, wsData, 'Liquidaciones');
+                processedWorkbook = newWb;
+                
+                // Crear resumen por comercial
+                const resumenPorComercial = {};
+                processedData.forEach(row => {
+                    const comercial = row['Comercial'];
+                    if (!resumenPorComercial[comercial]) {
+                        resumenPorComercial[comercial] = {
+                            'Comercial': comercial,
+                            'Nº Facturas': 0,
+                            'Consumo Total MWh': 0,
+                            'Comisión Total €': 0
+                        };
+                    }
+                    resumenPorComercial[comercial]['Nº Facturas']++;
+                    resumenPorComercial[comercial]['Consumo Total MWh'] += row['Consumo MWh'];
+                    resumenPorComercial[comercial]['Comisión Total €'] += row['COMISIÓN €'];
+                });
+                
+                const resumenArray = Object.values(resumenPorComercial).map(item => ({
+                    ...item,
+                    'Consumo Total MWh': parseFloat(item['Consumo Total MWh'].toFixed(2)),
+                    'Comisión Total €': parseFloat(item['Comisión Total €'].toFixed(2)),
+                    'Comisión con IVA €': parseFloat((item['Comisión Total €'] * 1.21).toFixed(2))
+                }));
+                
+                resumenArray.sort((a, b) => b['Comisión Total €'] - a['Comisión Total €']);
+                
+                const resumenWb = XLSX.utils.book_new();
+                const wsResumen = XLSX.utils.json_to_sheet(resumenArray);
+                
+                // Añadir totales al resumen
+                const rangeResumen = XLSX.utils.decode_range(wsResumen['!ref']);
+                const lastRowResumen = rangeResumen.e.r;
+                
+                const totalFacturas = resumenArray.reduce((sum, r) => sum + r['Nº Facturas'], 0);
+                const totalConsumo = resumenArray.reduce((sum, r) => sum + r['Consumo Total MWh'], 0);
+                const totalComisionResumen = resumenArray.reduce((sum, r) => sum + r['Comisión Total €'], 0);
+                const totalIVAResumen = totalComisionResumen * 1.21;
+                
+                XLSX.utils.sheet_add_aoa(wsResumen, [[]], { origin: lastRowResumen + 2 });
+                XLSX.utils.sheet_add_aoa(wsResumen, [['TOTALES', totalFacturas, totalConsumo.toFixed(2), totalComisionResumen.toFixed(2), totalIVAResumen.toFixed(2)]], { origin: lastRowResumen + 3 });
+                
+                XLSX.utils.book_append_sheet(resumenWb, wsResumen, 'Resumen por Comercial');
+                resumenWorkbook = resumenWb;
+                
+                // Mostrar estadísticas
+                displayStats(processedData.length, totalComisiones, totalConIVA, resumenArray.length);
+                
+                // Mostrar preview
+                displayPreview(processedData, totalComisiones, totalConIVA);
+                
+                loading.style.display = 'none';
+                showStatus(`✅ Procesadas ${processedData.length} líneas correctamente (${erroresContador} errores omitidos)`, 'success');
+                downloadSection.style.display = 'block';
+                
+            } catch (error) {
+                loading.style.display = 'none';
+                showStatus('Error al procesar el Excel: ' + error.message, 'error');
+                console.error(error);
+            }
+        }
+        
+        function displayStats(numFacturas, total, totalIVA, numComerciales) {
+            const html = `
+                <div class="stats">
+                    <div class="stat-card">
+                        <h3>${numFacturas}</h3>
+                        <p>Facturas procesadas</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>${numComerciales}</h3>
+                        <p>Comerciales</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>${total.toFixed(2)}€</h3>
+                        <p>Total comisiones</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>${totalIVA.toFixed(2)}€</h3>
+                        <p>Total con IVA</p>
+                    </div>
+                </div>
+            `;
+            statsContainer.innerHTML = html;
+        }
+        
+        function displayPreview(data, total, totalIVA) {
+            if (data.length === 0) return;
+            
+            const maxRows = 50;
+            const displayData = data.slice(0, maxRows);
+            
+            let html = '<h3>Vista previa (primeras ' + Math.min(maxRows, data.length) + ' filas de ' + data.length + ')</h3>';
+            html += '<table><thead><tr>';
+            
+            // Cabeceras principales
+            const mainHeaders = ['Comercial', 'Serie/Número', 'Cliente', 'Grupo/Tarifa', 'Consumo MWh', 'FEE', 'Porcentaje %', 'COMISIÓN €'];
+            mainHeaders.forEach(header => {
+                html += '<th>' + header + '</th>';
+            });
+            html += '</tr></thead><tbody>';
+            
+            // Agrupar por comercial
+            let currentComercial = '';
+            displayData.forEach(row => {
+                if (row['Comercial'] !== currentComercial) {
+                    currentComercial = row['Comercial'];
+                    html += '<tr class="comercial-group"><td colspan="8"><strong>📊 ' + currentComercial + '</strong></td></tr>';
+                }
+                
+                html += '<tr>';
+                html += '<td>' + (row['Comercial'] || '') + '</td>';
+                html += '<td>' + (row['Serie/Número'] || '') + '</td>';
+                html += '<td>' + (row['Cliente'] || '') + '</td>';
+                html += '<td>' + (row['Grupo/Tarifa'] || '') + '</td>';
+                html += '<td class="number-cell">' + (row['Consumo MWh'] || 0) + '</td>';
+                html += '<td class="number-cell">' + (row['FEE'] || 0) + '</td>';
+                html += '<td class="number-cell">' + (row['Porcentaje %'] || '0%') + '</td>';
+                html += '<td class="number-cell"><strong>' + (row['COMISIÓN €'] || 0).toFixed(2) + ' €</strong></td>';
+                html += '</tr>';
+            });
+            
+            // Totales
+            html += '<tr><td colspan="8"></td></tr>';
+            html += '<tr><td colspan="8"></td></tr>';
+            html += '<tr class="total-row"><td colspan="7" style="text-align: right;"><strong>TOTAL:</strong></td><td class="number-cell"><strong>' + total.toFixed(2) + ' €</strong></td></tr>';
+            html += '<tr class="total-iva-row"><td colspan="7" style="text-align: right;"><strong>TOTAL con IVA:</strong></td><td class="number-cell"><strong>' + totalIVA.toFixed(2) + ' €</strong></td></tr>';
+            
+            html += '</tbody></table>';
+            
+            preview.innerHTML = html;
+        }
+        
+        function downloadProcessedFile(tipo) {
+            const fileName = tipo === 'completo' 
+                ? 'Liquidaciones_Detalladas_' + new Date().toISOString().split('T')[0] + '.xlsx'
+                : 'Resumen_Por_Comercial_' + new Date().toISOString().split('T')[0] + '.xlsx';
+            
+            const wb = tipo === 'completo' ? processedWorkbook : resumenWorkbook;
+            
+            if (!wb) {
+                showStatus('No hay archivo procesado para descargar', 'error');
+                return;
+            }
+            
+            XLSX.writeFile(wb, fileName);
+            showStatus('✅ Archivo descargado correctamente: ' + fileName, 'success');
+        }
+    </script>
+</body>
+</html>
