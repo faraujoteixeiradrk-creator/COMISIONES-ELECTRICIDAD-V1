@@ -63,7 +63,6 @@
         .status { margin-top: 20px; padding: 15px; border-radius: 10px; display: none; }
         .status.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; display: block; }
         .status.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; display: block; }
-        .status.warning { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; display: block; }
         .download-section { display: none; text-align: center; margin-top: 30px; padding: 30px; background: #f8f9ff; border-radius: 15px; }
         .download-btn {
             background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
@@ -75,7 +74,6 @@
             cursor: pointer;
             transition: all 0.3s;
             box-shadow: 0 4px 15px rgba(17, 153, 142, 0.4);
-            margin: 5px;
         }
         .download-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(17, 153, 142, 0.6); }
         .loading { text-align: center; padding: 20px; display: none; }
@@ -124,25 +122,24 @@
             display: none;
         }
         .missing-tariffs h4 { color: #856404; margin-bottom: 10px; }
-        .missing-tariffs ul { margin-left: 20px; color: #856404; }
+        .missing-tariffs ul { margin-left: 20px; color: #856404; max-height: 200px; overflow-y: auto; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>💼 Calculadora de Liquidaciones Comerciales</h1>
-            <p>Agrupación por Número de Comercial con detección de tarifas</p>
+            <p>Procesamiento inteligente de comisiones</p>
         </div>
         
         <div class="content">
             <div class="instructions">
                 <h3>📋 Reglas de Cálculo:</h3>
                 <ul>
-                    <li><strong>Buscar tarifa exacta</strong> en hoja DATOS (Columna A)</li>
-                    <li><strong>Si no existe:</strong> Buscar patrones DRK, FIJO, RUNNING, Indexada, INDEX PLUS</li>
-                    <li><strong>Columna C de DATOS:</strong> "TOTAL" = 100% | "REPARTO" = % de COMISIONES</li>
-                    <li><strong>Resultado calculado</strong> en columna Comisión con fórmula de seguimiento</li>
-                    <li><strong>Tarifas no encontradas:</strong> Se exportan en hoja separada</li>
+                    <li><strong>1. Buscar coincidencia EXACTA</strong> en DATOS columna A</li>
+                    <li><strong>2. Si no existe:</strong> Extraer número del nombre de la tarifa</li>
+                    <li><strong>3. Columna C:</strong> "TOTAL" = 100% | "REPARTO" = % comercial</li>
+                    <li><strong>4. Resultado calculado</strong> + fórmula de seguimiento</li>
                 </ul>
             </div>
             
@@ -162,16 +159,16 @@
             <div class="status" id="status"></div>
             
             <div class="missing-tariffs" id="missingTariffs">
-                <h4>⚠️ Tarifas no encontradas:</h4>
+                <h4>⚠️ Tarifas no encontradas (se extrajo número del nombre):</h4>
                 <ul id="missingList"></ul>
-                <p style="margin-top: 10px;"><strong>Se ha creado una hoja "TARIFAS_NO_ENCONTRADAS" en el Excel exportado</strong></p>
+                <p style="margin-top: 10px;"><strong>Hoja "TARIFAS_NO_ENCONTRADAS" creada en el Excel</strong></p>
             </div>
             
             <div id="statsContainer"></div>
             
             <div class="download-section" id="downloadSection">
                 <h2>✅ Procesamiento completado</h2>
-                <button class="download-btn" id="downloadBtn">📥 Descargar Excel con Comisiones</button>
+                <button class="download-btn" id="downloadBtn">📥 Descargar Excel</button>
             </div>
         </div>
     </div>
@@ -198,15 +195,11 @@
         }
         
         ['dragenter', 'dragover'].forEach(eventName => {
-            uploadSection.addEventListener(eventName, () => {
-                uploadSection.classList.add('dragover');
-            }, false);
+            uploadSection.addEventListener(eventName, () => uploadSection.classList.add('dragover'), false);
         });
         
         ['dragleave', 'drop'].forEach(eventName => {
-            uploadSection.addEventListener(eventName, () => {
-                uploadSection.classList.remove('dragover');
-            }, false);
+            uploadSection.addEventListener(eventName, () => uploadSection.classList.remove('dragover'), false);
         });
         
         uploadSection.addEventListener('drop', (e) => {
@@ -228,33 +221,24 @@
                 if (fecha.includes('-')) {
                     const d = new Date(fecha);
                     if (!isNaN(d.getTime())) {
-                        const dia = String(d.getDate()).padStart(2, '0');
-                        const mes = String(d.getMonth() + 1).padStart(2, '0');
-                        const año = d.getFullYear();
-                        return `${dia}/${mes}/${año}`;
+                        return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
                     }
                 }
                 return fecha;
             }
             if (fecha instanceof Date && !isNaN(fecha.getTime())) {
-                const dia = String(fecha.getDate()).padStart(2, '0');
-                const mes = String(fecha.getMonth() + 1).padStart(2, '0');
-                const año = fecha.getFullYear();
-                return `${dia}/${mes}/${año}`;
+                return `${String(fecha.getDate()).padStart(2, '0')}/${String(fecha.getMonth() + 1).padStart(2, '0')}/${fecha.getFullYear()}`;
             }
             if (typeof fecha === 'number') {
                 const d = new Date((fecha - 25569) * 86400 * 1000);
-                const dia = String(d.getUTCDate()).padStart(2, '0');
-                const mes = String(d.getUTCMonth() + 1).padStart(2, '0');
-                const año = d.getUTCFullYear();
-                return `${dia}/${mes}/${año}`;
+                return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`;
             }
             return '';
         }
         
         function handleFile(file) {
             if (!file.name.match(/\.(xlsx|xls)$/)) {
-                showStatus('⚠️ Por favor, selecciona un archivo Excel válido', 'error');
+                showStatus('⚠️ Archivo inválido', 'error');
                 return;
             }
             
@@ -272,7 +256,6 @@
                 } catch (error) {
                     document.getElementById('loading').style.display = 'none';
                     showStatus('❌ Error: ' + error.message, 'error');
-                    console.error(error);
                 }
             };
             reader.readAsArrayBuffer(file);
@@ -293,18 +276,16 @@
                 const datosRaw = XLSX.utils.sheet_to_json(datosSheet, { header: 1 });
                 const comisionesRaw = XLSX.utils.sheet_to_json(comisionesSheet, { header: 1 });
                 
-                // Procesar DATOS: Columna A=Tarifa, B=Comision, C=Tipo (TOTAL/REPARTO)
+                // Procesar DATOS
                 const tarifasMap = {};
                 for (let i = 1; i < datosRaw.length; i++) {
-                    if (datosRaw[i][0]) {
+                    if (datosRaw[i][0] && datosRaw[i][1] !== 'X') {
                         const tarifa = String(datosRaw[i][0]).toUpperCase().trim();
                         const comision = parseFloat(datosRaw[i][1]) || 0;
                         const tipo = datosRaw[i][2] ? String(datosRaw[i][2]).toUpperCase().trim() : null;
                         tarifasMap[tarifa] = { comision: comision, tipo: tipo };
                     }
                 }
-                
-                console.log('Tarifas cargadas:', Object.keys(tarifasMap).length);
                 
                 // Procesar COMISIONES
                 const comercialesMap = {};
@@ -332,7 +313,6 @@
                 
                 const processed = [];
                 const tarifasNoEncontradas = new Set();
-                let totalCont = 0, repartoCont = 0;
                 
                 facturaData.forEach(r => {
                     const comercial = r['Comercial'] || r['Identidad'] || '';
@@ -342,41 +322,24 @@
                     
                     const grupo = String(grupoOriginal).toUpperCase().trim();
                     
-                    // PASO 1: Buscar tarifa EXACTA
+                    // BUSCAR EXACTA
                     let tarifaData = tarifasMap[grupo];
-                    let tarifaEncontrada = grupo;
+                    let metodo = 'EXACTA';
                     
-                    // PASO 2: Si no existe, buscar patrones especiales
+                    // SI NO EXISTE: Extraer número del nombre
                     if (!tarifaData) {
-                        const patrones = ['DRK FIJO RUNNING', 'DRK FIJO', 'RUNNING', 'INDEXADA', 'INDEX PLUS', 'DRK'];
-                        
-                        for (let patron of patrones) {
-                            if (grupo.includes(patron)) {
-                                for (let key in tarifasMap) {
-                                    if (key.includes(patron) || grupo.includes(key)) {
-                                        tarifaData = tarifasMap[key];
-                                        tarifaEncontrada = key;
-                                        break;
-                                    }
-                                }
-                                if (tarifaData) break;
-                            }
+                        const match = grupoOriginal.match(/\b(\d+)\b/g);
+                        if (match) {
+                            const numero = parseFloat(match[0]);
+                            tarifaData = { comision: numero, tipo: 'REPARTO' };
+                            metodo = 'EXTRAIDO';
+                            tarifasNoEncontradas.add(grupoOriginal + ' → ' + numero);
                         }
                     }
                     
-                    // PASO 3: Si no se encuentra, extraer número del nombre
-                    let comision = 0;
-                    let tipo = null;
-                    
-                    if (tarifaData) {
-                        comision = tarifaData.comision;
-                        tipo = tarifaData.tipo;
-                    } else {
-                        const match = grupoOriginal.match(/\b(\d+)\b/g);
-                        if (match) {
-                            comision = parseFloat(match[0]);
-                        }
-                        tarifasNoEncontradas.add(grupoOriginal);
+                    if (!tarifaData) {
+                        console.warn('Tarifa no procesable:', grupoOriginal);
+                        return;
                     }
                     
                     // Buscar comercial
@@ -392,30 +355,23 @@
                         }
                     }
                     
-                    if (!comercialInfo) {
-                        console.warn('Comercial no encontrado:', comercial);
-                        return;
-                    }
+                    if (!comercialInfo) return;
                     
                     const numeroComercial = comercialInfo.numeroComercial;
                     const pctComercial = comercialInfo.porcentaje;
                     
-                    // APLICAR REGLA: TOTAL o REPARTO
+                    // APLICAR TIPO
                     let pctFinal = pctComercial;
-                    let tipoAplicado = 'REPARTO';
+                    let tipoAplicado = tarifaData.tipo || 'REPARTO';
                     
-                    if (tipo === 'TOTAL') {
+                    if (tipoAplicado === 'TOTAL') {
                         pctFinal = 1.0;
-                        tipoAplicado = 'TOTAL';
-                        totalCont++;
-                    } else {
-                        repartoCont++;
                     }
                     
                     const consumoMWh = consumo / 1000;
+                    const comision = tarifaData.comision;
                     const comisionCalculada = consumoMWh * comision * pctFinal;
                     
-                    // FÓRMULA PARA SEGUIMIENTO
                     const formulaCalculo = `(${consumo}/1000)*${comision}*${pctFinal.toFixed(2)}=${comisionCalculada.toFixed(2)} [${tipoAplicado}]`;
                     
                     const sn = String(r['Serie/Numero'] || '');
@@ -446,12 +402,10 @@
                         'Tarifa': r['Tarifa'] || '',
                         'Fórmula Cálculo': formulaCalculo,
                         '_numComercial': numeroComercial,
-                        '_agente': comercial,
-                        '_comisionNum': comisionCalculada
+                        '_agente': comercial
                     });
                 });
                 
-                // Mostrar tarifas no encontradas
                 if (tarifasNoEncontradas.size > 0) {
                     const missingDiv = document.getElementById('missingTariffs');
                     const missingList = document.getElementById('missingList');
@@ -486,7 +440,6 @@
                     rows.forEach(r => {
                         delete r._numComercial;
                         delete r._agente;
-                        delete r._comisionNum;
                         final.push(r);
                     });
                     
@@ -500,20 +453,8 @@
                     
                     final.push({});
                     final.push({});
-                    final.push({
-                        'X': '',
-                        'Agente': 'SUBTOTAL ' + nombrePrincipal,
-                        'Tipo Comision': '',
-                        'Fecha': '',
-                        'Comisión': sub.toFixed(2)
-                    });
-                    final.push({
-                        'X': '',
-                        'Agente': 'SUBTOTAL CON IVA ' + nombrePrincipal,
-                        'Tipo Comision': '',
-                        'Fecha': '',
-                        'Comisión': subIVA.toFixed(2)
-                    });
+                    final.push({ 'X': '', 'Agente': 'SUBTOTAL ' + nombrePrincipal, 'Tipo Comision': '', 'Fecha': '', 'Comisión': sub.toFixed(2) });
+                    final.push({ 'X': '', 'Agente': 'SUBTOTAL CON IVA ' + nombrePrincipal, 'Tipo Comision': '', 'Fecha': '', 'Comisión': subIVA.toFixed(2) });
                     final.push({});
                     final.push({});
                 });
@@ -527,11 +468,7 @@
                 
                 resumen.sort((a, b) => parseInt(a.numeroComercial) - parseInt(b.numeroComercial));
                 resumen.forEach(i => {
-                    final.push({ 
-                        'Agente': i.nombre,
-                        'Numero': i.numeroComercial,
-                        'Comisión': i.subtotal.toFixed(2) + ' €'
-                    });
+                    final.push({ 'Agente': i.nombre, 'Numero': i.numeroComercial, 'Comisión': i.subtotal.toFixed(2) + ' €' });
                 });
                 
                 final.push({});
@@ -539,18 +476,15 @@
                 final.push({ 'Agente': 'TOTAL GENERAL:', 'Comisión': total.toFixed(2) + ' €' });
                 final.push({ 'Agente': 'TOTAL GENERAL CON IVA:', 'Comisión': totalIVA.toFixed(2) + ' €' });
                 
-                // Crear workbook
                 const newWb = XLSX.utils.book_new();
                 const ws = XLSX.utils.json_to_sheet(final);
                 XLSX.utils.book_append_sheet(newWb, ws, 'Hoja1');
                 
-                // Añadir hoja de tarifas no encontradas
                 if (tarifasNoEncontradas.size > 0) {
-                    const tarifasFaltantes = Array.from(tarifasNoEncontradas).map(t => ({
-                        'Tarifa': t,
-                        'Comisión': '',
-                        'Tipo': 'REPARTO o TOTAL'
-                    }));
+                    const tarifasFaltantes = Array.from(tarifasNoEncontradas).map(t => {
+                        const partes = t.split(' → ');
+                        return { 'Tarifa': partes[0], 'Comisión extraída': partes[1] || '', 'Tipo sugerido': 'REPARTO' };
+                    });
                     const wsMissing = XLSX.utils.json_to_sheet(tarifasFaltantes);
                     XLSX.utils.book_append_sheet(newWb, wsMissing, 'TARIFAS_NO_ENCONTRADAS');
                 }
@@ -561,7 +495,7 @@
                     <div class="stats">
                         <div class="stat-card"><h3>${processed.length}</h3><p>Facturas</p></div>
                         <div class="stat-card"><h3>${Object.keys(groups).length}</h3><p>Grupos</p></div>
-                        <div class="stat-card"><h3>${tarifasNoEncontradas.size}</h3><p>Tarifas no encontradas</p></div>
+                        <div class="stat-card"><h3>${tarifasNoEncontradas.size}</h3><p>Tarifas extraídas</p></div>
                         <div class="stat-card"><h3>${total.toFixed(2)}€</h3><p>Total</p></div>
                     </div>
                 `;
