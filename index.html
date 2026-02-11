@@ -6,7 +6,6 @@
     <title>Calculadora de Liquidaciones Comerciales</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -207,7 +206,11 @@
         }, false);
         
         document.getElementById('downloadBtn').addEventListener('click', downloadFile);
-        document.getElementById('downloadByComercialBtn').addEventListener('click', downloadByComercial);
+        document.getElementById('downloadByComercialBtn').addEventListener('click', function() {
+            console.log('Botón ZIP clickeado');
+            alert('Generando ZIP... Esto puede tardar unos segundos.');
+            downloadByComercial();
+        });
         
         function showStatus(msg, type) {
             const s = document.getElementById('status');
@@ -423,6 +426,8 @@
                 processedDataByGroup = groups;
                 allProcessedData = { numeroComercialMap, tarifasNoEncontradas };
                 
+                console.log('Datos procesados:', Object.keys(groups).length, 'comerciales');
+                
                 const final = [];
                 const resumen = [];
                 let currentRow = 2;
@@ -529,20 +534,25 @@
             showStatus('✅ Excel completo descargado', 'success');
         }
         
-        function downloadByComercial() {
+        async function downloadByComercial() {
+            console.log('downloadByComercial llamado');
+            console.log('processedDataByGroup:', processedDataByGroup ? 'OK' : 'NULL');
+            
             if (!processedDataByGroup) {
+                alert('Error: No hay datos procesados');
                 showStatus('❌ No hay datos procesados', 'error');
                 return;
             }
             
             try {
-                console.log('Iniciando generación de ZIP...');
-                showStatus('⏳ Generando ZIP con archivos por comercial...', 'success');
+                showStatus('⏳ Generando archivos...', 'success');
                 
                 const zip = new JSZip();
                 const { numeroComercialMap } = allProcessedData;
                 
+                let contador = 0;
                 Object.keys(processedDataByGroup).sort((a, b) => parseInt(a) - parseInt(b)).forEach(numCom => {
+                    console.log('Procesando comercial:', numCom);
                     const rows = processedDataByGroup[numCom];
                     const nombresGrupo = numeroComercialMap[numCom] ? numeroComercialMap[numCom].nombres : [];
                     const nombrePrincipal = nombresGrupo.length > 0 ? nombresGrupo[0] : 'Comercial_' + numCom;
@@ -586,22 +596,29 @@
                     const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
                     const fileName = `${String(numCom).padStart(2, '0')}_${nombrePrincipal.replace(/[^a-zA-Z0-9-]/g, '_')}.xlsx`;
                     
-                    console.log('Añadiendo archivo:', fileName);
                     zip.file(fileName, wbout);
+                    contador++;
                 });
                 
-                console.log('Generando blob...');
-                zip.generateAsync({ type: 'blob' }).then(function(content) {
-                    console.log('Descargando ZIP...');
-                    saveAs(content, 'Comisiones_Por_Comercial_' + new Date().toISOString().split('T')[0] + '.zip');
-                    showStatus('✅ ZIP descargado correctamente', 'success');
-                }).catch(function(err) {
-                    console.error('Error generando ZIP:', err);
-                    showStatus('❌ Error generando ZIP: ' + err.message, 'error');
-                });
+                console.log('Archivos añadidos al ZIP:', contador);
+                showStatus(`⏳ Generando ZIP con ${contador} archivos...`, 'success');
+                
+                const content = await zip.generateAsync({ type: 'blob' });
+                console.log('ZIP generado, tamaño:', content.size);
+                
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(content);
+                link.download = 'Comisiones_Por_Comercial_' + new Date().toISOString().split('T')[0] + '.zip';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                showStatus(`✅ ZIP descargado con ${contador} archivos`, 'success');
+                alert(`ZIP descargado correctamente con ${contador} archivos`);
                 
             } catch (error) {
-                console.error('Error:', error);
+                console.error('Error completo:', error);
+                alert('Error: ' + error.message);
                 showStatus('❌ Error: ' + error.message, 'error');
             }
         }
