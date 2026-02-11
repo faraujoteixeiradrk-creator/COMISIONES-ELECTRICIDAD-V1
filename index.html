@@ -141,7 +141,7 @@
                     <li><strong>Buscar tarifa exacta</strong> en hoja DATOS (Columna A)</li>
                     <li><strong>Si no existe:</strong> Buscar patrones DRK, FIJO, RUNNING, Indexada, INDEX PLUS</li>
                     <li><strong>Columna C de DATOS:</strong> "TOTAL" = 100% | "REPARTO" = % de COMISIONES</li>
-                    <li><strong>Fórmula visible</strong> en columna Comisión para seguimiento</li>
+                    <li><strong>Resultado calculado</strong> en columna Comisión con fórmula de seguimiento</li>
                     <li><strong>Tarifas no encontradas:</strong> Se exportan en hoja separada</li>
                 </ul>
             </div>
@@ -352,7 +352,6 @@
                         
                         for (let patron of patrones) {
                             if (grupo.includes(patron)) {
-                                // Buscar en tarifasMap por coincidencia
                                 for (let key in tarifasMap) {
                                     if (key.includes(patron) || grupo.includes(key)) {
                                         tarifaData = tarifasMap[key];
@@ -373,12 +372,10 @@
                         comision = tarifaData.comision;
                         tipo = tarifaData.tipo;
                     } else {
-                        // Intentar extraer número del nombre de la tarifa
                         const match = grupoOriginal.match(/\b(\d+)\b/g);
                         if (match) {
                             comision = parseFloat(match[0]);
                         }
-                        // Añadir a tarifas no encontradas
                         tarifasNoEncontradas.add(grupoOriginal);
                     }
                     
@@ -418,8 +415,8 @@
                     const consumoMWh = consumo / 1000;
                     const comisionCalculada = consumoMWh * comision * pctFinal;
                     
-                    // FÓRMULA PARA MOSTRAR
-                    const formula = `=(${consumo}/1000)*${comision}*${pctFinal.toFixed(2)} [${tipoAplicado}]`;
+                    // FÓRMULA PARA SEGUIMIENTO
+                    const formulaCalculo = `(${consumo}/1000)*${comision}*${pctFinal.toFixed(2)}=${comisionCalculada.toFixed(2)} [${tipoAplicado}]`;
                     
                     const sn = String(r['Serie/Numero'] || '');
                     let serie = '', numero = sn;
@@ -431,7 +428,7 @@
                         'Agente': comercial,
                         'Tipo Comision': 'Importe € kWh facturado',
                         'Fecha': '',
-                        'Comisión': formula,
+                        'Comisión': parseFloat(comisionCalculada.toFixed(2)),
                         'Serie': serie,
                         'Numero': numero,
                         'Importe Base': consumo,
@@ -447,6 +444,7 @@
                         'Dirección': r['Dirección'] || '',
                         'Tarifa Peaje': r['Tarifa Peaje'] || '',
                         'Tarifa': r['Tarifa'] || '',
+                        'Fórmula Cálculo': formulaCalculo,
                         '_numComercial': numeroComercial,
                         '_agente': comercial,
                         '_comisionNum': comisionCalculada
@@ -486,14 +484,13 @@
                     const rows = groups[numCom];
                     
                     rows.forEach(r => {
-                        const comisionNum = r._comisionNum;
                         delete r._numComercial;
                         delete r._agente;
                         delete r._comisionNum;
                         final.push(r);
                     });
                     
-                    const sub = rows.reduce((s, r) => s + (r._comisionNum || 0), 0);
+                    const sub = rows.reduce((s, r) => s + (parseFloat(r['Comisión']) || 0), 0);
                     const subIVA = sub * 1.21;
                     
                     const nombresGrupo = numeroComercialMap[numCom] ? numeroComercialMap[numCom].nombres : [];
