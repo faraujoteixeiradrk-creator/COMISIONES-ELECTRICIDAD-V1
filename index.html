@@ -20,7 +20,7 @@
         }
         
         .container {
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 0 auto;
             background: white;
             border-radius: 20px;
@@ -138,7 +138,6 @@
             cursor: pointer;
             transition: all 0.3s;
             box-shadow: 0 4px 15px rgba(17, 153, 142, 0.4);
-            margin: 5px;
         }
         
         .download-btn:hover {
@@ -149,6 +148,7 @@
         .preview {
             margin-top: 30px;
             overflow-x: auto;
+            max-height: 600px;
         }
         
         table {
@@ -158,23 +158,23 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             border-radius: 10px;
             overflow: hidden;
-            font-size: 0.9em;
+            font-size: 0.85em;
         }
         
         th {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 12px 8px;
+            padding: 10px 6px;
             text-align: left;
             font-weight: 600;
-            font-size: 0.85em;
+            font-size: 0.8em;
             position: sticky;
             top: 0;
             z-index: 10;
         }
         
         td {
-            padding: 10px 8px;
+            padding: 8px 6px;
             border-bottom: 1px solid #f0f0f0;
         }
         
@@ -285,9 +285,9 @@
                 <h3>📋 Instrucciones:</h3>
                 <ul>
                     <li>Tu Excel debe contener 3 hojas: <strong>FACTURA TOTAL</strong>, <strong>DATOS</strong>, y <strong>COMISIONES</strong></li>
-                    <li>La hoja FACTURA TOTAL debe incluir: Identidad, Grupo, Consumo, Serie/Numero, etc.</li>
+                    <li>La hoja FACTURA TOTAL debe incluir: Identidad, Comercial, Grupo, Consumo, Serie/Numero, CUPS, Contrato, etc.</li>
                     <li>Hoja DATOS: Columna A = Tarifa, Columna B = FEE</li>
-                    <li>Hoja COMISIONES: Columna A = Comercial, Columna C = Porcentaje (ejemplo: 0.3 = 30%)</li>
+                    <li>Hoja COMISIONES: Columna A = Comercial (Agente), Columna C = Porcentaje (ejemplo: 0.3 = 30%)</li>
                     <li><strong>Fórmula:</strong> Comisión = (Consumo / 1000) × FEE × Porcentaje</li>
                 </ul>
             </div>
@@ -310,9 +310,8 @@
             
             <div class="download-section" id="downloadSection">
                 <h2>✅ Procesamiento completado</h2>
-                <p style="margin: 15px 0;">Tus archivos de liquidaciones están listos</p>
-                <button class="download-btn" id="downloadBtnCompleto">📥 Descargar Excel Completo</button>
-                <button class="download-btn" id="downloadBtnResumen">📊 Descargar Resumen por Comercial</button>
+                <p style="margin: 15px 0;">Tu archivo de liquidaciones está listo</p>
+                <button class="download-btn" id="downloadBtn">📥 Descargar Excel de Comisiones</button>
             </div>
             
             <div class="preview" id="preview"></div>
@@ -321,15 +320,13 @@
 
     <script>
         let processedWorkbook = null;
-        let resumenWorkbook = null;
         
         const fileInput = document.getElementById('fileInput');
         const uploadSection = document.getElementById('uploadSection');
         const loading = document.getElementById('loading');
         const status = document.getElementById('status');
         const downloadSection = document.getElementById('downloadSection');
-        const downloadBtnCompleto = document.getElementById('downloadBtnCompleto');
-        const downloadBtnResumen = document.getElementById('downloadBtnResumen');
+        const downloadBtn = document.getElementById('downloadBtn');
         const preview = document.getElementById('preview');
         const statsContainer = document.getElementById('statsContainer');
         
@@ -358,8 +355,7 @@
             }
         });
         
-        downloadBtnCompleto.addEventListener('click', () => downloadProcessedFile('completo'));
-        downloadBtnResumen.addEventListener('click', () => downloadProcessedFile('resumen'));
+        downloadBtn.addEventListener('click', downloadProcessedFile);
         
         function showStatus(message, type) {
             status.textContent = message;
@@ -397,20 +393,26 @@
         }
         
         function extraerFEEdelNombre(nombreTarifa) {
-            // Buscar números en el nombre de la tarifa
             const matches = nombreTarifa.match(/\b(\d+)\b/g);
             if (matches && matches.length > 0) {
-                // Devolver el primer número encontrado
                 return parseFloat(matches[0]);
             }
             return 0;
+        }
+        
+        function formatearFecha(fecha) {
+            if (!fecha) return '';
+            if (fecha instanceof Date) {
+                return fecha.toISOString().split('T')[0] + ' 00:00:00';
+            }
+            return fecha.toString();
         }
         
         function processExcel(workbook) {
             try {
                 const sheetNames = workbook.SheetNames;
                 
-                // Buscar las hojas necesarias (case-insensitive)
+                // Buscar las hojas necesarias
                 const facturaSheetName = sheetNames.find(name => 
                     name.toUpperCase().includes('FACTURA') || name.toUpperCase().includes('TOTAL')
                 );
@@ -423,16 +425,8 @@
                     name.toUpperCase() === 'COMISIONES'
                 );
                 
-                if (!facturaSheetName) {
-                    throw new Error('No se encontró la hoja de facturas');
-                }
-                
-                if (!datosSheetName) {
-                    throw new Error('No se encontró la hoja "DATOS"');
-                }
-                
-                if (!comisionesSheetName) {
-                    throw new Error('No se encontró la hoja "COMISIONES"');
+                if (!facturaSheetName || !datosSheetName || !comisionesSheetName) {
+                    throw new Error('Faltan hojas necesarias. Asegúrate de tener: FACTURA TOTAL, DATOS y COMISIONES');
                 }
                 
                 const facturaSheet = workbook.Sheets[facturaSheetName];
@@ -444,7 +438,7 @@
                 const datosRaw = XLSX.utils.sheet_to_json(datosSheet, { header: 1 });
                 const comisionesRaw = XLSX.utils.sheet_to_json(comisionesSheet, { header: 1 });
                 
-                // Procesar DATOS (saltar cabecera)
+                // Procesar DATOS
                 const feesMap = {};
                 for (let i = 1; i < datosRaw.length; i++) {
                     const row = datosRaw[i];
@@ -455,7 +449,7 @@
                     }
                 }
                 
-                // Procesar COMISIONES (saltar cabecera)
+                // Procesar COMISIONES
                 const comisionesMap = {};
                 for (let i = 1; i < comisionesRaw.length; i++) {
                     const row = comisionesRaw[i];
@@ -471,18 +465,24 @@
                 
                 // Procesar facturas
                 const processedData = [];
-                let erroresContador = 0;
                 
                 facturaData.forEach((row, idx) => {
                     try {
+                        // Obtener valores de las columnas
                         const identidad = row['Identidad'] || row['IDENTIDAD'] || '';
                         const comercial = row['Comercial'] || row['COMERCIAL'] || '';
                         const grupo = row['Grupo'] || row['GRUPO'] || '';
                         const consumo = parseFloat(row['Consumo'] || row['CONSUMO'] || 0);
-                        const serieNumero = row['Serie/Numero'] || row['Serie/Número'] || row['SERIE/NUMERO'] || '';
+                        const serieNumero = (row['Serie/Numero'] || row['Serie/Número'] || row['SERIE/NUMERO'] || '').toString();
+                        const cups = row['CUPS'] || '';
+                        const contrato = row['Contrato'] || '';
+                        const cliente = row['Cliente'] || row['CLIENTE'] || '';
+                        const fechaFactura = row['Fecha Factura'] || '';
+                        const fechaInicioSuministro = row['Fecha Inicio Suministro'] || '';
+                        const fechaFinSuministro = row['Fecha Fin Suministro'] || '';
                         
                         if (!grupo || consumo === 0) {
-                            return; // Saltar filas sin datos importantes
+                            return;
                         }
                         
                         const consumoMWh = consumo / 1000;
@@ -491,12 +491,9 @@
                         // Buscar FEE
                         let fee = 0;
                         
-                        // 1. Buscar coincidencia exacta en DATOS
                         if (feesMap[grupoUpper]) {
                             fee = feesMap[grupoUpper];
-                        } 
-                        // 2. Buscar coincidencia parcial
-                        else {
+                        } else {
                             let encontrado = false;
                             for (let tarifaKey in feesMap) {
                                 if (grupoUpper.includes(tarifaKey) || tarifaKey.includes(grupoUpper)) {
@@ -506,13 +503,12 @@
                                 }
                             }
                             
-                            // 3. Si no se encuentra, extraer del nombre
                             if (!encontrado) {
                                 fee = extraerFEEdelNombre(grupo);
                             }
                         }
                         
-                        // Buscar comercial (puede estar en Identidad o en Comercial)
+                        // Buscar comercial
                         let nombreComercial = comercial || identidad;
                         const comercialUpper = nombreComercial.toString().toUpperCase().trim();
                         
@@ -521,7 +517,6 @@
                         if (comisionesMap[comercialUpper]) {
                             porcentaje = comisionesMap[comercialUpper];
                         } else {
-                            // Buscar coincidencia parcial
                             for (let comercialKey in comisionesMap) {
                                 if (comercialUpper.includes(comercialKey) || comercialKey.includes(comercialUpper)) {
                                     porcentaje = comisionesMap[comercialKey];
@@ -533,28 +528,45 @@
                         // Calcular comisión
                         const comision = consumoMWh * fee * porcentaje;
                         
-                        // Crear fila procesada
-                        const processedRow = {
-                            'Comercial': nombreComercial,
-                            'Serie/Número': serieNumero,
-                            'Cliente': row['Cliente'] || row['CLIENTE'] || '',
-                            'CUPS': row['CUPS'] || '',
-                            'Grupo/Tarifa': grupo,
-                            'Consumo': consumo,
-                            'Consumo MWh': parseFloat(consumoMWh.toFixed(3)),
-                            'FEE': fee,
-                            'Porcentaje %': (porcentaje * 100).toFixed(0) + '%',
-                            'COMISIÓN €': parseFloat(comision.toFixed(2))
-                        };
+                        // Extraer Serie y Número del campo Serie/Numero
+                        const partes = serieNumero.split(' ');
+                        let serie = partes.length > 0 ? partes[0] : '';
+                        let numero = partes.length > 1 ? partes[partes.length - 1] : serieNumero;
                         
-                        // Copiar otras columnas relevantes
-                        if (row['Fecha Factura']) processedRow['Fecha Factura'] = row['Fecha Factura'];
-                        if (row['Importe Total']) processedRow['Importe Total'] = row['Importe Total'];
+                        // Si Serie/Numero tiene formato "ENERGIA 201698"
+                        if (serieNumero.includes('ENERGIA') || serieNumero.includes('ABOENER')) {
+                            const match = serieNumero.match(/([A-Z]+)\s*(\d+)/);
+                            if (match) {
+                                serie = match[1];
+                                numero = match[2];
+                            }
+                        }
+                        
+                        // Crear fila en formato solicitado
+                        const processedRow = {
+                            'X': 'SigeCom.DTO.TablasMaestras.AgenteComisionDetailsDTO',
+                            'Agente': nombreComercial,
+                            'Tipo Comision': 'Importe € kWh facturado',
+                            'Fecha': '',
+                            'Comisión': parseFloat(comision.toFixed(2)),
+                            'Serie': serie,
+                            'Numero': numero,
+                            'Importe Base': consumo,
+                            'Código Contrato': contrato,
+                            'Fecha Activación': '',
+                            'CUPS': cups,
+                            'Identidad': identidad,
+                            'Fecha Contratación': formatearFecha(fechaFactura),
+                            'Fecha Desde': formatearFecha(fechaInicioSuministro),
+                            'Fecha Hasta': formatearFecha(fechaFinSuministro),
+                            // Campos auxiliares para ordenar (no se mostrarán en el Excel final)
+                            '_comercial': nombreComercial,
+                            '_numero': numero
+                        };
                         
                         processedData.push(processedRow);
                         
                     } catch (error) {
-                        erroresContador++;
                         console.error('Error en fila ' + (idx + 2) + ':', error);
                     }
                 });
@@ -563,18 +575,28 @@
                     throw new Error('No se pudo procesar ninguna fila. Verifica la estructura del Excel.');
                 }
                 
-                // Ordenar por comercial y serie/número
+                // Ordenar por comercial y número
                 processedData.sort((a, b) => {
-                    const comercialCompare = (a['Comercial'] || '').localeCompare(b['Comercial'] || '');
+                    const comercialCompare = (a._comercial || '').localeCompare(b._comercial || '');
                     if (comercialCompare !== 0) return comercialCompare;
-                    return (a['Serie/Número'] || '').toString().localeCompare((b['Serie/Número'] || '').toString());
+                    
+                    // Ordenar por número
+                    const numA = parseInt(a._numero) || 0;
+                    const numB = parseInt(b._numero) || 0;
+                    return numA - numB;
+                });
+                
+                // Eliminar campos auxiliares
+                processedData.forEach(row => {
+                    delete row._comercial;
+                    delete row._numero;
                 });
                 
                 // Calcular totales
-                const totalComisiones = processedData.reduce((sum, row) => sum + (row['COMISIÓN €'] || 0), 0);
+                const totalComisiones = processedData.reduce((sum, row) => sum + (row['Comisión'] || 0), 0);
                 const totalConIVA = totalComisiones * 1.21;
                 
-                // Crear Excel completo
+                // Crear nuevo workbook
                 const newWb = XLSX.utils.book_new();
                 const wsData = XLSX.utils.json_to_sheet(processedData);
                 
@@ -584,64 +606,20 @@
                 
                 XLSX.utils.sheet_add_aoa(wsData, [[]], { origin: lastRow + 2 });
                 XLSX.utils.sheet_add_aoa(wsData, [[]], { origin: lastRow + 3 });
-                XLSX.utils.sheet_add_aoa(wsData, [['', '', '', '', '', '', '', '', 'TOTAL:', totalComisiones.toFixed(2)]], { origin: lastRow + 4 });
-                XLSX.utils.sheet_add_aoa(wsData, [['', '', '', '', '', '', '', '', 'TOTAL con IVA:', totalConIVA.toFixed(2)]], { origin: lastRow + 5 });
+                XLSX.utils.sheet_add_aoa(wsData, [['', '', '', '', 'TOTAL:', '', '', totalComisiones.toFixed(2)]], { origin: lastRow + 4 });
+                XLSX.utils.sheet_add_aoa(wsData, [['', '', '', '', 'TOTAL con IVA:', '', '', totalConIVA.toFixed(2)]], { origin: lastRow + 5 });
                 
-                XLSX.utils.book_append_sheet(newWb, wsData, 'Liquidaciones');
+                XLSX.utils.book_append_sheet(newWb, wsData, 'Hoja1');
                 processedWorkbook = newWb;
                 
-                // Crear resumen por comercial
-                const resumenPorComercial = {};
-                processedData.forEach(row => {
-                    const comercial = row['Comercial'];
-                    if (!resumenPorComercial[comercial]) {
-                        resumenPorComercial[comercial] = {
-                            'Comercial': comercial,
-                            'Nº Facturas': 0,
-                            'Consumo Total MWh': 0,
-                            'Comisión Total €': 0
-                        };
-                    }
-                    resumenPorComercial[comercial]['Nº Facturas']++;
-                    resumenPorComercial[comercial]['Consumo Total MWh'] += row['Consumo MWh'];
-                    resumenPorComercial[comercial]['Comisión Total €'] += row['COMISIÓN €'];
-                });
-                
-                const resumenArray = Object.values(resumenPorComercial).map(item => ({
-                    ...item,
-                    'Consumo Total MWh': parseFloat(item['Consumo Total MWh'].toFixed(2)),
-                    'Comisión Total €': parseFloat(item['Comisión Total €'].toFixed(2)),
-                    'Comisión con IVA €': parseFloat((item['Comisión Total €'] * 1.21).toFixed(2))
-                }));
-                
-                resumenArray.sort((a, b) => b['Comisión Total €'] - a['Comisión Total €']);
-                
-                const resumenWb = XLSX.utils.book_new();
-                const wsResumen = XLSX.utils.json_to_sheet(resumenArray);
-                
-                // Añadir totales al resumen
-                const rangeResumen = XLSX.utils.decode_range(wsResumen['!ref']);
-                const lastRowResumen = rangeResumen.e.r;
-                
-                const totalFacturas = resumenArray.reduce((sum, r) => sum + r['Nº Facturas'], 0);
-                const totalConsumo = resumenArray.reduce((sum, r) => sum + r['Consumo Total MWh'], 0);
-                const totalComisionResumen = resumenArray.reduce((sum, r) => sum + r['Comisión Total €'], 0);
-                const totalIVAResumen = totalComisionResumen * 1.21;
-                
-                XLSX.utils.sheet_add_aoa(wsResumen, [[]], { origin: lastRowResumen + 2 });
-                XLSX.utils.sheet_add_aoa(wsResumen, [['TOTALES', totalFacturas, totalConsumo.toFixed(2), totalComisionResumen.toFixed(2), totalIVAResumen.toFixed(2)]], { origin: lastRowResumen + 3 });
-                
-                XLSX.utils.book_append_sheet(resumenWb, wsResumen, 'Resumen por Comercial');
-                resumenWorkbook = resumenWb;
-                
                 // Mostrar estadísticas
-                displayStats(processedData.length, totalComisiones, totalConIVA, resumenArray.length);
+                displayStats(processedData.length, totalComisiones, totalConIVA);
                 
                 // Mostrar preview
                 displayPreview(processedData, totalComisiones, totalConIVA);
                 
                 loading.style.display = 'none';
-                showStatus(`✅ Procesadas ${processedData.length} líneas correctamente (${erroresContador} errores omitidos)`, 'success');
+                showStatus(`✅ Procesadas ${processedData.length} líneas correctamente`, 'success');
                 downloadSection.style.display = 'block';
                 
             } catch (error) {
@@ -651,16 +629,12 @@
             }
         }
         
-        function displayStats(numFacturas, total, totalIVA, numComerciales) {
+        function displayStats(numFacturas, total, totalIVA) {
             const html = `
                 <div class="stats">
                     <div class="stat-card">
                         <h3>${numFacturas}</h3>
                         <p>Facturas procesadas</p>
-                    </div>
-                    <div class="stat-card">
-                        <h3>${numComerciales}</h3>
-                        <p>Comerciales</p>
                     </div>
                     <div class="stat-card">
                         <h3>${total.toFixed(2)}€</h3>
@@ -678,15 +652,15 @@
         function displayPreview(data, total, totalIVA) {
             if (data.length === 0) return;
             
-            const maxRows = 50;
+            const maxRows = 30;
             const displayData = data.slice(0, maxRows);
             
             let html = '<h3>Vista previa (primeras ' + Math.min(maxRows, data.length) + ' filas de ' + data.length + ')</h3>';
             html += '<table><thead><tr>';
             
-            // Cabeceras principales
-            const mainHeaders = ['Comercial', 'Serie/Número', 'Cliente', 'Grupo/Tarifa', 'Consumo MWh', 'FEE', 'Porcentaje %', 'COMISIÓN €'];
-            mainHeaders.forEach(header => {
+            // Cabeceras específicas
+            const headers = ['Agente', 'Tipo Comision', 'Comisión', 'Serie', 'Numero', 'Importe Base', 'Código Contrato', 'CUPS', 'Identidad', 'Fecha Contratación', 'Fecha Desde', 'Fecha Hasta'];
+            headers.forEach(header => {
                 html += '<th>' + header + '</th>';
             });
             html += '</tr></thead><tbody>';
@@ -694,47 +668,46 @@
             // Agrupar por comercial
             let currentComercial = '';
             displayData.forEach(row => {
-                if (row['Comercial'] !== currentComercial) {
-                    currentComercial = row['Comercial'];
-                    html += '<tr class="comercial-group"><td colspan="8"><strong>📊 ' + currentComercial + '</strong></td></tr>';
+                if (row['Agente'] !== currentComercial) {
+                    currentComercial = row['Agente'];
+                    html += '<tr class="comercial-group"><td colspan="12"><strong>📊 ' + currentComercial + '</strong></td></tr>';
                 }
                 
                 html += '<tr>';
-                html += '<td>' + (row['Comercial'] || '') + '</td>';
-                html += '<td>' + (row['Serie/Número'] || '') + '</td>';
-                html += '<td>' + (row['Cliente'] || '') + '</td>';
-                html += '<td>' + (row['Grupo/Tarifa'] || '') + '</td>';
-                html += '<td class="number-cell">' + (row['Consumo MWh'] || 0) + '</td>';
-                html += '<td class="number-cell">' + (row['FEE'] || 0) + '</td>';
-                html += '<td class="number-cell">' + (row['Porcentaje %'] || '0%') + '</td>';
-                html += '<td class="number-cell"><strong>' + (row['COMISIÓN €'] || 0).toFixed(2) + ' €</strong></td>';
+                html += '<td>' + (row['Agente'] || '') + '</td>';
+                html += '<td>' + (row['Tipo Comision'] || '') + '</td>';
+                html += '<td class="number-cell"><strong>' + (row['Comisión'] || 0) + '</strong></td>';
+                html += '<td>' + (row['Serie'] || '') + '</td>';
+                html += '<td>' + (row['Numero'] || '') + '</td>';
+                html += '<td class="number-cell">' + (row['Importe Base'] || '') + '</td>';
+                html += '<td>' + (row['Código Contrato'] || '') + '</td>';
+                html += '<td>' + (row['CUPS'] || '') + '</td>';
+                html += '<td>' + (row['Identidad'] || '') + '</td>';
+                html += '<td>' + (row['Fecha Contratación'] || '') + '</td>';
+                html += '<td>' + (row['Fecha Desde'] || '') + '</td>';
+                html += '<td>' + (row['Fecha Hasta'] || '') + '</td>';
                 html += '</tr>';
             });
             
             // Totales
-            html += '<tr><td colspan="8"></td></tr>';
-            html += '<tr><td colspan="8"></td></tr>';
-            html += '<tr class="total-row"><td colspan="7" style="text-align: right;"><strong>TOTAL:</strong></td><td class="number-cell"><strong>' + total.toFixed(2) + ' €</strong></td></tr>';
-            html += '<tr class="total-iva-row"><td colspan="7" style="text-align: right;"><strong>TOTAL con IVA:</strong></td><td class="number-cell"><strong>' + totalIVA.toFixed(2) + ' €</strong></td></tr>';
+            html += '<tr><td colspan="12"></td></tr>';
+            html += '<tr><td colspan="12"></td></tr>';
+            html += '<tr class="total-row"><td colspan="2" style="text-align: right;"><strong>TOTAL:</strong></td><td class="number-cell" colspan="10"><strong>' + total.toFixed(2) + ' €</strong></td></tr>';
+            html += '<tr class="total-iva-row"><td colspan="2" style="text-align: right;"><strong>TOTAL con IVA:</strong></td><td class="number-cell" colspan="10"><strong>' + totalIVA.toFixed(2) + ' €</strong></td></tr>';
             
             html += '</tbody></table>';
             
             preview.innerHTML = html;
         }
         
-        function downloadProcessedFile(tipo) {
-            const fileName = tipo === 'completo' 
-                ? 'Liquidaciones_Detalladas_' + new Date().toISOString().split('T')[0] + '.xlsx'
-                : 'Resumen_Por_Comercial_' + new Date().toISOString().split('T')[0] + '.xlsx';
-            
-            const wb = tipo === 'completo' ? processedWorkbook : resumenWorkbook;
-            
-            if (!wb) {
+        function downloadProcessedFile() {
+            if (!processedWorkbook) {
                 showStatus('No hay archivo procesado para descargar', 'error');
                 return;
             }
             
-            XLSX.writeFile(wb, fileName);
+            const fileName = 'Comisiones_' + new Date().toISOString().split('T')[0] + '.xlsx';
+            XLSX.writeFile(processedWorkbook, fileName);
             showStatus('✅ Archivo descargado correctamente: ' + fileName, 'success');
         }
     </script>
