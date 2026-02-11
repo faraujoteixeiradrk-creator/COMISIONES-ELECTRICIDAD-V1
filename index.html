@@ -45,7 +45,6 @@
             background: #e8ebff !important; 
             border-color: #764ba2 !important; 
             transform: scale(1.02);
-            box-shadow: 0 0 20px rgba(102, 126, 234, 0.3);
         }
         input[type="file"] { display: none; }
         .upload-btn {
@@ -57,9 +56,8 @@
             font-size: 1.1em;
             cursor: pointer;
             transition: all 0.3s;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
         }
-        .upload-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6); }
+        .upload-btn:hover { transform: translateY(-2px); }
         .status { margin-top: 20px; padding: 15px; border-radius: 10px; display: none; }
         .status.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; display: block; }
         .status.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; display: block; }
@@ -72,10 +70,7 @@
             border-radius: 50px;
             font-size: 1.1em;
             cursor: pointer;
-            transition: all 0.3s;
-            box-shadow: 0 4px 15px rgba(17, 153, 142, 0.4);
         }
-        .download-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(17, 153, 142, 0.6); }
         .loading { text-align: center; padding: 20px; display: none; }
         .spinner {
             border: 4px solid #f3f3f3;
@@ -134,12 +129,11 @@
         
         <div class="content">
             <div class="instructions">
-                <h3>📋 Reglas de Cálculo:</h3>
+                <h3>📋 Reglas:</h3>
                 <ul>
-                    <li><strong>1. Buscar coincidencia EXACTA</strong> en DATOS columna A</li>
-                    <li><strong>2. Si no existe:</strong> Extraer número del nombre de la tarifa</li>
-                    <li><strong>3. Columna C:</strong> "TOTAL" = 100% | "REPARTO" = % comercial</li>
-                    <li><strong>4. Resultado calculado</strong> + fórmula de seguimiento</li>
+                    <li><strong>INDEX PLUS</strong> → Siempre TOTAL (100%)</li>
+                    <li><strong>Indexada, DRK</strong> → REPARTO (% comercial)</li>
+                    <li>Extracción automática de número si no existe en DATOS</li>
                 </ul>
             </div>
             
@@ -153,21 +147,21 @@
             
             <div class="loading" id="loading">
                 <div class="spinner"></div>
-                <p style="margin-top: 15px; color: #667eea;">Procesando archivo...</p>
+                <p style="margin-top: 15px; color: #667eea;">Procesando...</p>
             </div>
             
             <div class="status" id="status"></div>
             
             <div class="missing-tariffs" id="missingTariffs">
-                <h4>⚠️ Tarifas no encontradas (se extrajo número del nombre):</h4>
+                <h4>⚠️ Tarifas extraídas automáticamente:</h4>
                 <ul id="missingList"></ul>
-                <p style="margin-top: 10px;"><strong>Hoja "TARIFAS_NO_ENCONTRADAS" creada en el Excel</strong></p>
+                <p style="margin-top: 10px;"><strong>Hoja "TARIFAS_NO_ENCONTRADAS" creada</strong></p>
             </div>
             
             <div id="statsContainer"></div>
             
             <div class="download-section" id="downloadSection">
-                <h2>✅ Procesamiento completado</h2>
+                <h2>✅ Completado</h2>
                 <button class="download-btn" id="downloadBtn">📥 Descargar Excel</button>
             </div>
         </div>
@@ -185,21 +179,22 @@
         });
         
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            uploadSection.addEventListener(eventName, preventDefaults, false);
-            document.body.addEventListener(eventName, preventDefaults, false);
+            uploadSection.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            }, false);
         });
         
-        function preventDefaults(e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-        
         ['dragenter', 'dragover'].forEach(eventName => {
-            uploadSection.addEventListener(eventName, () => uploadSection.classList.add('dragover'), false);
+            uploadSection.addEventListener(eventName, () => {
+                uploadSection.classList.add('dragover');
+            }, false);
         });
         
         ['dragleave', 'drop'].forEach(eventName => {
-            uploadSection.addEventListener(eventName, () => uploadSection.classList.remove('dragover'), false);
+            uploadSection.addEventListener(eventName, () => {
+                uploadSection.classList.remove('dragover');
+            }, false);
         });
         
         uploadSection.addEventListener('drop', (e) => {
@@ -217,12 +212,10 @@
         
         function formatearFecha(fecha) {
             if (!fecha) return '';
-            if (typeof fecha === 'string') {
-                if (fecha.includes('-')) {
-                    const d = new Date(fecha);
-                    if (!isNaN(d.getTime())) {
-                        return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
-                    }
+            if (typeof fecha === 'string' && fecha.includes('-')) {
+                const d = new Date(fecha);
+                if (!isNaN(d.getTime())) {
+                    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
                 }
                 return fecha;
             }
@@ -256,6 +249,7 @@
                 } catch (error) {
                     document.getElementById('loading').style.display = 'none';
                     showStatus('❌ Error: ' + error.message, 'error');
+                    console.error(error);
                 }
             };
             reader.readAsArrayBuffer(file);
@@ -276,7 +270,6 @@
                 const datosRaw = XLSX.utils.sheet_to_json(datosSheet, { header: 1 });
                 const comisionesRaw = XLSX.utils.sheet_to_json(comisionesSheet, { header: 1 });
                 
-                // Procesar DATOS
                 const tarifasMap = {};
                 for (let i = 1; i < datosRaw.length; i++) {
                     if (datosRaw[i][0] && datosRaw[i][1] !== 'X') {
@@ -287,7 +280,6 @@
                     }
                 }
                 
-                // Procesar COMISIONES
                 const comercialesMap = {};
                 const numeroComercialMap = {};
                 
@@ -322,27 +314,26 @@
                     
                     const grupo = String(grupoOriginal).toUpperCase().trim();
                     
-                    // BUSCAR EXACTA
                     let tarifaData = tarifasMap[grupo];
-                    let metodo = 'EXACTA';
                     
-                    // SI NO EXISTE: Extraer número del nombre
                     if (!tarifaData) {
                         const match = grupoOriginal.match(/\b(\d+)\b/g);
                         if (match) {
                             const numero = parseFloat(match[0]);
-                            tarifaData = { comision: numero, tipo: 'REPARTO' };
-                            metodo = 'EXTRAIDO';
-                            tarifasNoEncontradas.add(grupoOriginal + ' → ' + numero);
+                            
+                            // REGLA: INDEX PLUS = TOTAL, resto = REPARTO
+                            let tipoAuto = 'REPARTO';
+                            if (grupo.includes('INDEX')) {
+                                tipoAuto = 'TOTAL';
+                            }
+                            
+                            tarifaData = { comision: numero, tipo: tipoAuto };
+                            tarifasNoEncontradas.add(JSON.stringify({ tarifa: grupoOriginal, comision: numero, tipo: tipoAuto }));
                         }
                     }
                     
-                    if (!tarifaData) {
-                        console.warn('Tarifa no procesable:', grupoOriginal);
-                        return;
-                    }
+                    if (!tarifaData) return;
                     
-                    // Buscar comercial
                     const comercialU = String(comercial).toUpperCase().trim();
                     let comercialInfo = comercialesMap[comercialU];
                     
@@ -360,7 +351,6 @@
                     const numeroComercial = comercialInfo.numeroComercial;
                     const pctComercial = comercialInfo.porcentaje;
                     
-                    // APLICAR TIPO
                     let pctFinal = pctComercial;
                     let tipoAplicado = tarifaData.tipo || 'REPARTO';
                     
@@ -411,8 +401,9 @@
                     const missingList = document.getElementById('missingList');
                     missingList.innerHTML = '';
                     tarifasNoEncontradas.forEach(t => {
+                        const obj = JSON.parse(t);
                         const li = document.createElement('li');
-                        li.textContent = t;
+                        li.textContent = `${obj.tarifa} → ${obj.comision} [${obj.tipo}]`;
                         missingList.appendChild(li);
                     });
                     missingDiv.style.display = 'block';
@@ -451,30 +442,25 @@
                     
                     resumen.push({ numeroComercial: numCom, nombre: nombrePrincipal, subtotal: sub });
                     
-                    final.push({});
-                    final.push({});
-                    final.push({ 'X': '', 'Agente': 'SUBTOTAL ' + nombrePrincipal, 'Tipo Comision': '', 'Fecha': '', 'Comisión': sub.toFixed(2) });
-                    final.push({ 'X': '', 'Agente': 'SUBTOTAL CON IVA ' + nombrePrincipal, 'Tipo Comision': '', 'Fecha': '', 'Comisión': subIVA.toFixed(2) });
-                    final.push({});
-                    final.push({});
+                    final.push({}, {});
+                    final.push({ 'X': '', 'Agente': 'SUBTOTAL ' + nombrePrincipal, 'Comisión': sub.toFixed(2) });
+                    final.push({ 'X': '', 'Agente': 'SUBTOTAL CON IVA ' + nombrePrincipal, 'Comisión': subIVA.toFixed(2) });
+                    final.push({}, {});
                 });
                 
                 const total = resumen.reduce((s, a) => s + a.subtotal, 0);
                 const totalIVA = total * 1.21;
                 
-                final.push({});
-                final.push({ 'Agente': '=== RESUMEN POR NÚMERO DE COMERCIAL (SIN IVA) ===' });
-                final.push({});
+                final.push({}, { 'Agente': '=== RESUMEN (SIN IVA) ===' }, {});
                 
                 resumen.sort((a, b) => parseInt(a.numeroComercial) - parseInt(b.numeroComercial));
                 resumen.forEach(i => {
                     final.push({ 'Agente': i.nombre, 'Numero': i.numeroComercial, 'Comisión': i.subtotal.toFixed(2) + ' €' });
                 });
                 
-                final.push({});
-                final.push({});
+                final.push({}, {});
                 final.push({ 'Agente': 'TOTAL GENERAL:', 'Comisión': total.toFixed(2) + ' €' });
-                final.push({ 'Agente': 'TOTAL GENERAL CON IVA:', 'Comisión': totalIVA.toFixed(2) + ' €' });
+                final.push({ 'Agente': 'TOTAL CON IVA:', 'Comisión': totalIVA.toFixed(2) + ' €' });
                 
                 const newWb = XLSX.utils.book_new();
                 const ws = XLSX.utils.json_to_sheet(final);
@@ -482,8 +468,8 @@
                 
                 if (tarifasNoEncontradas.size > 0) {
                     const tarifasFaltantes = Array.from(tarifasNoEncontradas).map(t => {
-                        const partes = t.split(' → ');
-                        return { 'Tarifa': partes[0], 'Comisión extraída': partes[1] || '', 'Tipo sugerido': 'REPARTO' };
+                        const obj = JSON.parse(t);
+                        return { 'Tarifa': obj.tarifa, 'Comisión extraída': obj.comision, 'Tipo sugerido': obj.tipo };
                     });
                     const wsMissing = XLSX.utils.json_to_sheet(tarifasFaltantes);
                     XLSX.utils.book_append_sheet(newWb, wsMissing, 'TARIFAS_NO_ENCONTRADAS');
@@ -495,7 +481,7 @@
                     <div class="stats">
                         <div class="stat-card"><h3>${processed.length}</h3><p>Facturas</p></div>
                         <div class="stat-card"><h3>${Object.keys(groups).length}</h3><p>Grupos</p></div>
-                        <div class="stat-card"><h3>${tarifasNoEncontradas.size}</h3><p>Tarifas extraídas</p></div>
+                        <div class="stat-card"><h3>${tarifasNoEncontradas.size}</h3><p>Extraídas</p></div>
                         <div class="stat-card"><h3>${total.toFixed(2)}€</h3><p>Total</p></div>
                     </div>
                 `;
@@ -513,9 +499,8 @@
         
         function downloadFile() {
             if (!processedWorkbook) return;
-            const fileName = 'Comisiones_' + new Date().toISOString().split('T')[0] + '.xlsx';
-            XLSX.writeFile(processedWorkbook, fileName);
-            showStatus('✅ Descargado: ' + fileName, 'success');
+            XLSX.writeFile(processedWorkbook, 'Comisiones_' + new Date().toISOString().split('T')[0] + '.xlsx');
+            showStatus('✅ Descargado', 'success');
         }
     </script>
 </body>
