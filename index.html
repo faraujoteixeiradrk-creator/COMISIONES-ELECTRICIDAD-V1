@@ -131,9 +131,9 @@
             <div class="instructions">
                 <h3>📋 Reglas:</h3>
                 <ul>
-                    <li><strong>INDEX PLUS</strong> → Siempre TOTAL (100%)</li>
-                    <li><strong>Indexada, DRK</strong> → REPARTO (% comercial)</li>
-                    <li>Extracción automática de número si no existe en DATOS</li>
+                    <li><strong>SOLO "INDEX PLUS"</strong> → TOTAL (100%)</li>
+                    <li><strong>Indexada, DRK, etc.</strong> → REPARTO (% comercial)</li>
+                    <li>Extracción automática si no existe en DATOS</li>
                 </ul>
             </div>
             
@@ -321,9 +321,9 @@
                         if (match) {
                             const numero = parseFloat(match[0]);
                             
-                            // REGLA: INDEX PLUS = TOTAL, resto = REPARTO
+                            // REGLA CRÍTICA: SOLO "INDEX PLUS" es TOTAL
                             let tipoAuto = 'REPARTO';
-                            if (grupo.includes('INDEX')) {
+                            if (grupo.includes('INDEX PLUS') || grupo.includes('INDEX') && grupo.includes('PLUS')) {
                                 tipoAuto = 'TOTAL';
                             }
                             
