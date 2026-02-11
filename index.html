@@ -120,9 +120,11 @@
                 <h3>📋 Instrucciones:</h3>
                 <ul>
                     <li>Tu Excel debe contener 3 hojas: <strong>FACTURA TOTAL</strong>, <strong>DATOS</strong>, y <strong>COMISIONES</strong></li>
+                    <li><strong>REGLAS ESPECIALES:</strong></li>
+                    <li style="margin-left: 20px;">• Si DATOS columna C = "TOTAL" → Comisión al 100% (ignora % comercial)</li>
+                    <li style="margin-left: 20px;">• Si DATOS columna C = "REPARTO" → Reduce % comercial a la mitad</li>
                     <li>Se generarán <strong>subtotales por cada agente</strong> (SIN IVA y CON IVA)</li>
-                    <li>Al final se añadirá un <strong>resumen completo</strong> con todos los agentes ordenados</li>
-                    <li>Columnas adicionales: Grupo, Cliente, Dirección, Tarifa Peaje, Tarifa</li>
+                    <li>Al final: <strong>resumen completo</strong> con todos los agentes ordenados</li>
                 </ul>
             </div>
             
@@ -196,16 +198,30 @@
                 const datosRaw = XLSX.utils.sheet_to_json(datosSheet, { header: 1 });
                 const comisionesRaw = XLSX.utils.sheet_to_json(comisionesSheet, { header: 1 });
                 
-                // Mapas
-                const fees = {}, coms = {};
+                // Mapas - AHORA INCLUYE COLUMNA C (TIPO)
+                const fees = {}; // { tarifa: { fee: X, tipo: 'TOTAL'/'REPARTO'/null } }
                 for (let i = 1; i < datosRaw.length; i++) {
-                    if (datosRaw[i][0]) fees[String(datosRaw[i][0]).toUpperCase().trim()] = parseFloat(datosRaw[i][1]) || 0;
-                }
-                for (let i = 1; i < comisionesRaw.length; i++) {
-                    if (comisionesRaw[i][0]) coms[String(comisionesRaw[i][0]).toUpperCase().trim()] = parseFloat(comisionesRaw[i][2]) || 0;
+                    if (datosRaw[i][0]) {
+                        const tarifa = String(datosRaw[i][0]).toUpperCase().trim();
+                        const fee = parseFloat(datosRaw[i][1]) || 0;
+                        const tipo = datosRaw[i][2] ? String(datosRaw[i][2]).toUpperCase().trim() : null;
+                        fees[tarifa] = { fee: fee, tipo: tipo };
+                    }
                 }
                 
+                const coms = {};
+                for (let i = 1; i < comisionesRaw.length; i++) {
+                    if (comisionesRaw[i][0]) {
+                        coms[String(comisionesRaw[i][0]).toUpperCase().trim()] = parseFloat(comisionesRaw[i][2]) || 0;
+                    }
+                }
+                
+                console.log('Tarifas con tipo cargadas:', Object.keys(fees).length);
+                console.log('Comerciales cargados:', Object.keys(coms).length);
+                
                 const processed = [];
+                let totalContador = 0;
+                let repartoContador = 0;
                 
                 facturaData.forEach(r => {
                     const comercial = r['Comercial'] || r['Identidad'] || '';
@@ -214,26 +230,48 @@
                     if (!grupo || !consumo) return;
                     
                     const grupoU = String(grupo).toUpperCase().trim();
-                    let fee = fees[grupoU] || 0;
-                    if (!fee) {
+                    
+                    // Buscar FEE y TIPO
+                    let feeData = fees[grupoU] || { fee: 0, tipo: null };
+                    if (feeData.fee === 0) {
                         for (let k in fees) {
-                            if (grupoU.includes(k) || k.includes(grupoU)) { fee = fees[k]; break; }
+                            if (grupoU.includes(k) || k.includes(grupoU)) {
+                                feeData = fees[k];
+                                break;
+                            }
                         }
                     }
-                    if (!fee) {
+                    if (feeData.fee === 0) {
                         const m = grupo.match(/\b(\d+)\b/g);
-                        if (m) fee = parseFloat(m[0]);
+                        if (m) feeData = { fee: parseFloat(m[0]), tipo: null };
                     }
                     
+                    const fee = feeData.fee;
+                    const tipo = feeData.tipo;
+                    
+                    // Buscar % comercial
                     const comercialU = String(comercial).toUpperCase().trim();
                     let pct = coms[comercialU] || 0;
                     if (!pct) {
                         for (let k in coms) {
-                            if (comercialU.includes(k) || k.includes(comercialU)) { pct = coms[k]; break; }
+                            if (comercialU.includes(k) || k.includes(comercialU)) {
+                                pct = coms[k];
+                                break;
+                            }
                         }
                     }
                     
-                    const comision = (consumo / 1000) * fee * pct;
+                    // APLICAR REGLAS ESPECIALES
+                    let pctFinal = pct;
+                    if (tipo === 'TOTAL') {
+                        pctFinal = 1.0; // 100%
+                        totalContador++;
+                    } else if (tipo === 'REPARTO') {
+                        pctFinal = pct / 2; // Reducir a la mitad
+                        repartoContador++;
+                    }
+                    
+                    const comision = (consumo / 1000) * fee * pctFinal;
                     
                     const sn = String(r['Serie/Numero'] || '');
                     let serie = '', numero = sn;
@@ -265,6 +303,9 @@
                         '_num': numero
                     });
                 });
+                
+                console.log('Tarifas TOTAL aplicadas:', totalContador);
+                console.log('Tarifas REPARTO aplicadas:', repartoContador);
                 
                 processed.sort((a, b) => {
                     const c = a._ag.localeCompare(b._ag);
@@ -320,15 +361,17 @@
                 
                 document.getElementById('statsContainer').innerHTML = `
                     <div class="stats">
-                        <div class="stat-card"><h3>${processed.length}</h3><p>Facturas</p></div>
+                        <div class="stat-card"><h3>${processed.length}</h3><p>Facturas procesadas</p></div>
                         <div class="stat-card"><h3>${Object.keys(groups).length}</h3><p>Agentes</p></div>
-                        <div class="stat-card"><h3>${total.toFixed(2)}€</h3><p>Total</p></div>
-                        <div class="stat-card"><h3>${totalIVA.toFixed(2)}€</h3><p>Con IVA</p></div>
+                        <div class="stat-card"><h3>${totalContador}</h3><p>Tarifas TOTAL (100%)</p></div>
+                        <div class="stat-card"><h3>${repartoContador}</h3><p>Tarifas REPARTO (50%)</p></div>
+                        <div class="stat-card"><h3>${total.toFixed(2)}€</h3><p>Total sin IVA</p></div>
+                        <div class="stat-card"><h3>${totalIVA.toFixed(2)}€</h3><p>Total con IVA</p></div>
                     </div>
                 `;
                 
                 document.getElementById('loading').style.display = 'none';
-                showStatus(`✅ Procesadas ${processed.length} líneas con ${Object.keys(groups).length} agentes`, 'success');
+                showStatus(`✅ Procesadas ${processed.length} líneas (${totalContador} TOTAL, ${repartoContador} REPARTO) con ${Object.keys(groups).length} agentes`, 'success');
                 document.getElementById('downloadSection').style.display = 'block';
                 
             } catch (error) {
