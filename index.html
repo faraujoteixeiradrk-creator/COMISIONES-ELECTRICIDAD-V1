@@ -701,11 +701,18 @@ import sys
 try:
     wb = openpyxl.load_workbook('" & archivoExcelOriginal & "', data_only=True)
     
-    if 'COMISIONES' not in wb.sheetnames:
-        print('ERROR: No existe la hoja COMISIONES')
+    # Buscar hoja COMISIONES con variaciones
+    hoja_comisiones = None
+    for nombre_hoja in wb.sheetnames:
+        if 'COMISION' in nombre_hoja.upper():
+            hoja_comisiones = nombre_hoja
+            break
+    
+    if not hoja_comisiones:
+        print('ERROR: No se encuentra hoja de COMISIONES. Hojas disponibles: ' + ', '.join(wb.sheetnames))
         sys.exit(1)
     
-    ws = wb['COMISIONES']
+    ws = wb[hoja_comisiones]
     datos = {}
     
     for row in ws.iter_rows(min_row=2, values_only=True):
