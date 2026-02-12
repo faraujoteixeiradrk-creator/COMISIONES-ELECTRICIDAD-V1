@@ -683,8 +683,8 @@ end try
 set carpetaTemporal to (do shell script "mktemp -d") & "/"
 do shell script "unzip -q " & quoted form of archivoZIP & " -d " & quoted form of carpetaTemporal
 
--- Obtener archivos Excel descomprimidos
-set archivosExcel to paragraphs of (do shell script "find " & quoted form of carpetaTemporal & " -name '*.xlsx' -type f")
+-- Obtener archivos Excel descomprimidos (buscar recursivamente y excluir temporales)
+set archivosExcel to paragraphs of (do shell script "find " & quoted form of carpetaTemporal & " -name '*.xlsx' -type f | grep -v '~$'")
 
 if (count of archivosExcel) is 0 then
     display dialog "❌ No se encontraron archivos Excel en el ZIP" buttons {"OK"} default button 1 with icon stop
@@ -717,9 +717,14 @@ try:
             hoja_comisiones = nombre_hoja
             break
     
+    # Si no encuentra COMISIONES, usar la primera hoja disponible
     if not hoja_comisiones:
-        print('ERROR: No se encuentra hoja de COMISIONES. Hojas disponibles: ' + ', '.join(wb.sheetnames))
-        sys.exit(1)
+        if len(wb.sheetnames) > 0:
+            hoja_comisiones = wb.sheetnames[0]
+            print(f'AVISO: Usando hoja {hoja_comisiones} (no se encontró hoja COMISIONES)')
+        else:
+            print('ERROR: El Excel no tiene hojas')
+            sys.exit(1)
     
     ws = wb[hoja_comisiones]
     datos = {}
