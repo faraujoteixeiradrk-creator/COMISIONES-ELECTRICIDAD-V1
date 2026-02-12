@@ -177,9 +177,11 @@
                 <br>
                 <button class="download-btn secondary" id="downloadByComercialBtn">📦 Descargar por Comercial (ZIP)</button>
                 <br>
-                <button class="download-btn email" id="sendEmailBtn">📧 Enviar por Email</button>
+                <button class="download-btn email" id="sendEmailBtn">📧 Enviar por Email (Web)</button>
+                <br>
+                <button class="download-btn" style="background: linear-gradient(135deg, #FF6B6B 0%, #FFE66D 100%);" id="downloadScriptBtn">🍎 Descargar Script para Mac + Outlook</button>
                 <p style="margin-top: 15px; font-size: 0.9em; color: #666;">
-                    ⚠️ Los emails se abrirán uno por uno. Debes descargar el archivo y adjuntarlo manualmente.
+                    💡 <strong>Recomendado Mac:</strong> Descarga el ZIP + Script. El script abrirá Outlook automáticamente con archivos adjuntos.
                 </p>
             </div>
         </div>
@@ -219,6 +221,7 @@
         document.getElementById('downloadBtn').addEventListener('click', downloadFile);
         document.getElementById('downloadByComercialBtn').addEventListener('click', downloadByComercial);
         document.getElementById('sendEmailBtn').addEventListener('click', sendEmails);
+        document.getElementById('downloadScriptBtn').addEventListener('click', downloadOutlookScript);
         
         function showStatus(msg, type) {
             const s = document.getElementById('status');
@@ -655,7 +658,204 @@
             }
         }
         
+        function downloadOutlookScript() {
+            if (!processedDataByGroup || !allProcessedData) {
+                showStatus('❌ No hay datos procesados', 'error');
+                return;
+            }
+            
+            const { numeroComercialMap } = allProcessedData;
+            const mesActual = getMesActual();
+            
+            // Generar script AppleScript dinámico con los datos
+            let scriptContent = `-- SCRIPT AUTOMÁTICO GENERADO
+-- Este script busca automáticamente el ZIP y Excel en Descargas
+-- y crea emails en Outlook con archivos adjuntos
+
+set nombreRemitente to "Fernando"
+set carpetaDescargas to (path to downloads folder as text)
+set rutaDescargas to POSIX path of carpetaDescargas
+
+-- Buscar ZIP más reciente
+set archivoZIP to do shell script "find " & quoted form of rutaDescargas & " -name 'Comisiones_Por_Comercial_*.zip' -type f -mtime -1 | head -1"
+
+if archivoZIP is "" then
+    display dialog "❌ Descarga primero el ZIP desde la calculadora web" buttons {"OK"} with icon stop
+    return
+end if
+
+-- Buscar Excel original
+set comandoExcel to "find " & quoted form of rutaDescargas & " -name 'EJEMPLO*.xlsx' -o -name '*COMISIONES*.xlsx' -type f -mtime -1 | head -1"
+set archivoExcel to do shell script comandoExcel
+
+if archivoExcel is "" then
+    display dialog "❌ No se encuentra el Excel original en Descargas" buttons {"OK"} with icon stop
+    return
+end if
+
+-- Confirmar
+set nombreZIP to do shell script "basename " & quoted form of archivoZIP
+display dialog "📋 Encontrado: " & nombreZIP & "
+
+¿Crear emails en Outlook?" buttons {"Cancelar", "Continuar"} default button 2
+
+if button returned of result is "Cancelar" then return
+
+-- Descomprimir
+set carpetaTemporal to (do shell script "mktemp -d") & "/"
+do shell script "unzip -q " & quoted form of archivoZIP & " -d " & quoted form of carpetaTemporal
+set archivosExcel to paragraphs of (do shell script "find " & quoted form of carpetaTemporal & " -name '*.xlsx' -type f")
+
+-- Datos de emails embebidos
+set datosEmails to {`;
+            
+            // Añadir datos de cada comercial
+            Object.keys(processedDataByGroup).sort((a, b) => parseInt(a) - parseInt(b)).forEach((numCom, index) => {
+                const emailInfo = emailDataMap[numCom];
+                if (emailInfo && emailInfo.emails && emailInfo.emails.length > 0) {
+                    const nombre = emailInfo.nombre || 'Comercial';
+                    const emails = emailInfo.emails.join(';');
+                    const numeroFormateado = String(numCom).padStart(2, '0');
+                    
+                    if (index > 0) scriptContent += ', ';
+                    scriptContent += `{num:"${numeroFormateado}", nombre:"${nombre.replace(/"/g, '\\"')}", emails:"${emails}"}`;
+                }
+            });
+            
+            scriptContent += `}
+
+-- Crear emails en Outlook
+tell application "Microsoft Outlook"
+    activate
+    set contadorEmails to 0
+    
+    repeat with dato in datosEmails
+        set numeroComercial to num of dato
+        set nombreComercial to nombre of dato
+        set emailsDestino to emails of dato
+        
+        -- Buscar archivo correspondiente
+        set archivoEncontrado to missing value
+        repeat with archivoPath in archivosExcel
+            if archivoPath contains (numeroComercial & "_") then
+                set archivoEncontrado to archivoPath
+                exit repeat
+            end if
+        end repeat
+        
+        if archivoEncontrado is not missing value then
+            -- Crear email
+            set nuevoEmail to make new outgoing message with properties {subject:"Liquidaciones ${mesActual} - " & nombreComercial}
+            
+            -- Destinatarios
+            set AppleScript's text item delimiters to ";"
+            set listaEmails to text items of emailsDestino
+            set AppleScript's text item delimiters to ""
+            
+            repeat with unEmail in listaEmails
+                make new recipient at nuevoEmail with properties {email address:{address:unEmail}}
+            end repeat
+            
+            -- Cuerpo
+            set contenido to "Buenos días " & nombreComercial & "," & return & return
+            set contenido to contenido & "Te envío las liquidaciones del mes de ${mesActual}." & return & return
+            set contenido to contenido & "Un saludo," & return & "Fernando"
+            set plain text content of nuevoEmail to contenido
+            
+            -- Adjuntar
+            tell nuevoEmail
+                make new attachment with properties {file:POSIX file archivoEncontrado}
+            end tell
+            
+            open nuevoEmail
+            set contadorEmails to contadorEmails + 1
+            delay 1
+        end if
+    end repeat
+end tell
+
+-- Limpiar
+do shell script "rm -rf " & quoted form of carpetaTemporal
+
+display dialog "✅ Emails creados: " & contadorEmails & "
+
+Revísalos en Outlook antes de enviar" buttons {"OK"}
+`;
+            
+            // Descargar script
+            const blob = new Blob([scriptContent], { type: 'text/plain' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'Enviar_Liquidaciones_Outlook_' + new Date().toISOString().split('T')[0] + '.scpt';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showStatus('✅ Script descargado. Sigue estos pasos:\n\n1. Descarga el ZIP\n2. Haz doble clic en el script\n3. ¡Listo! Outlook abrirá con los emails', 'success');
+            
+            alert('📥 Script descargado\n\n✅ PASOS:\n1. Descarga el ZIP (botón verde)\n2. Haz doble clic en el archivo .scpt descargado\n3. El script encontrará el ZIP y Excel automáticamente\n4. Outlook se abrirá con todos los emails listos\n\n💡 El ZIP y Excel deben estar en Descargas');
+        }
+        
         function sendEmails() {
+            if (!processedDataByGroup) {
+                showStatus('❌ No hay datos procesados', 'error');
+                return;
+            }
+            
+            const { numeroComercialMap } = allProcessedData;
+            const mesActual = getMesActual();
+            let emailsEnviados = 0;
+            let emailsSinDatos = 0;
+            
+            showStatus('📧 Abriendo emails...', 'warning');
+            
+            Object.keys(processedDataByGroup).sort((a, b) => parseInt(a) - parseInt(b)).forEach(numCom => {
+                const emailInfo = emailDataMap[numCom];
+                
+                if (!emailInfo || !emailInfo.emails || emailInfo.emails.length === 0) {
+                    console.warn('No hay emails para comercial:', numCom);
+                    emailsSinDatos++;
+                    return;
+                }
+                
+                const nombre = emailInfo.nombre || 'Comercial';
+                const emailsPara = emailInfo.emails.join(',');
+                
+                const nombresPrincipal = numeroComercialMap[numCom] ? numeroComercialMap[numCom].nombres[0] : 'Comercial_' + numCom;
+                const nombreArchivo = `Liquidacion_${mesActual}_${nombresPrincipal.replace(/[^a-zA-Z0-9-]/g, '_')}.xlsx`;
+                
+                const cuerpo = `Buenos días ${nombre},
+
+Te envío las liquidaciones del mes de ${mesActual}.
+
+Un saludo,
+Fernando
+
+---
+NOTA: Por favor, descarga primero el archivo Excel correspondiente a este comercial y adjúntalo manualmente a este email.
+Nombre del archivo: ${nombreArchivo}`;
+                
+                const asunto = `Liquidaciones ${mesActual} - ${nombre}`;
+                
+                const mailtoLink = `mailto:${emailsPara}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`;
+                
+                setTimeout(() => {
+                    window.open(mailtoLink, '_blank');
+                }, emailsEnviados * 2000);
+                
+                emailsEnviados++;
+            });
+            
+            let mensaje = `✅ Se abrirán ${emailsEnviados} emails (uno cada 2 segundos)`;
+            if (emailsSinDatos > 0) {
+                mensaje += `\n⚠️ ${emailsSinDatos} comerciales sin datos de email`;
+            }
+            mensaje += '\n\n⚠️ IMPORTANTE: Debes descargar los archivos Excel y adjuntarlos manualmente a cada email.';
+            
+            showStatus(mensaje, emailsEnviados > 0 ? 'success' : 'warning');
+            
+            alert(mensaje + '\n\nSugerencia: Primero descarga el ZIP con todos los archivos, luego adjunta el archivo correspondiente a cada email que se abra.');
+        }
             if (!processedDataByGroup) {
                 showStatus('❌ No hay datos procesados', 'error');
                 return;
