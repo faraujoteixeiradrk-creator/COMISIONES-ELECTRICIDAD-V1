@@ -836,31 +836,33 @@
         }
         
         function downloadScript() {
-            const scriptContent = `-- SCRIPT AUTOMÁTICO OUTLOOK
+            // Descarga directa del script sin complicaciones
+            const url = '/mnt/user-data/outputs/Automatico_Outlook.scpt';
+            
+            // Leer el archivo
+            fetch('Automatico_Outlook.scpt')
+                .catch(() => {
+                    // Si no puede hacer fetch, generar el contenido directamente
+                    const scriptContent = `-- SCRIPT OUTLOOK
 set carpetaDescargas to (path to downloads folder as text)
 set rutaDescargas to POSIX path of carpetaDescargas
-
 set archivoZIP to do shell script "find " & quoted form of rutaDescargas & " -name 'Comisiones_Por_Comercial_*.zip' -type f -mtime -1 | head -1"
 if archivoZIP is "" then
-	display dialog "❌ No se encontró el ZIP" buttons {"OK"} default button 1 with icon stop
-	return
+display dialog "No ZIP" buttons {"OK"}
+return
 end if
-
 set archivoExcel to do shell script "find " & quoted form of rutaDescargas & " -maxdepth 1 -name '*comision*.xlsx' -type f -mtime -1 | head -1"
 if archivoExcel is "" then
-	display dialog "❌ No se encontró comisiones.xlsx" buttons {"OK"} default button 1 with icon stop
-	return
+display dialog "No Excel" buttons {"OK"}
+return
 end if
-
-display dialog "¿Continuar?" buttons {"No", "Sí"} default button 2
+display dialog "Continuar?" buttons {"No", "Si"} default button 2
 if button returned of result is "No" then return
 end if
-
 set tmpDir to (do shell script "mktemp -d") & "/"
 do shell script "unzip -q " & quoted form of archivoZIP & " -d " & quoted form of tmpDir
 set archivos to paragraphs of (do shell script "find " & quoted form of tmpDir & " -name '*.xlsx' | grep -v '~$'")
-
-do shell script "cat > " & quoted form of (tmpDir & "a.py") & " << 'PY'
+do shell script "cat > " & quoted form of (tmpDir & "a.py") & " << 'XPY'
 import openpyxl,json,sys
 wb=openpyxl.load_workbook(sys.argv[1],data_only=True)
 h=next((n for n in wb.sheetnames if 'COMISION' in n.upper()),wb.sheetnames[0])
@@ -871,15 +873,13 @@ for r in wb[h].iter_rows(min_row=2,values_only=True):
   e=[str(r[i]).strip() for i in range(4,min(8,len(r))) if r[i] and '@' in str(r[i])]
   if e:d[n.upper()]={'n':n,'e':e}
 print(json.dumps(d))
-PY"
-
-do shell script "cat > " & quoted form of (tmpDir & "b.py") & " << 'PY'
+XPY"
+do shell script "cat > " & quoted form of (tmpDir & "b.py") & " << 'XPY'
 import sys
 n=sys.argv[1].split('_',1)
 print(n[1].split('_')[0].upper() if len(n)>1 else n[0].upper())
-PY"
-
-do shell script "cat > " & quoted form of (tmpDir & "c.py") & " << 'PY'
+XPY"
+do shell script "cat > " & quoted form of (tmpDir & "c.py") & " << 'XPY'
 import json,sys
 d=json.loads(sys.argv[1])
 b=sys.argv[2].upper()
@@ -888,55 +888,51 @@ for k,v in d.items():
   print(v['n']+'|'+';'.join(v['e']))
   sys.exit(0)
 print('NO')
-PY"
-
+XPY"
 set emails to do shell script "python3 " & quoted form of (tmpDir & "a.py") & " " & quoted form of archivoExcel
 set mes to do shell script "python3 -c 'import datetime as d;print([\"Enero\",\"Febrero\",\"Marzo\",\"Abril\",\"Mayo\",\"Junio\",\"Julio\",\"Agosto\",\"Septiembre\",\"Octubre\",\"Noviembre\",\"Diciembre\"][d.datetime.now().month-1])'"
-
 tell application "Microsoft Outlook"
-	activate
-	set cont to 0
-	repeat with arch in archivos
-		set nom to do shell script "basename " & quoted form of arch & " .xlsx"
-		set nomC to do shell script "python3 " & quoted form of (tmpDir & "b.py") & " " & quoted form of nom
-		set res to do shell script "python3 " & quoted form of (tmpDir & "c.py") & " " & quoted form of emails & " " & quoted form of nomC
-		if res is not "NO" then
-			set AppleScript's text item delimiters to "|"
-			set p to text items of res
-			set n to item 1 of p
-			set e to item 2 of p
-			set AppleScript's text item delimiters to ""
-			set m to make new outgoing message with properties {subject:"Liquidaciones " & mes & " - " & n}
-			set AppleScript's text item delimiters to ";"
-			repeat with em in text items of e
-				make new recipient at m with properties {email address:{address:em}}
-			end repeat
-			set AppleScript's text item delimiters to ""
-			set c to "Buenos días " & n & "," & return & return
-			set c to c & "Te envío las liquidaciones del mes de " & mes & "." & return & return & return
-			set c to c & "Un saludo," & return & return & "Fernando Araujo" & return & "DRK-SPAIN"
-			set plain text content of m to c
-			tell m
-				make new attachment with properties {file:POSIX file arch}
-			end tell
-			open m
-			set cont to cont + 1
-			delay 1
-		end if
-	end repeat
+activate
+set cont to 0
+repeat with arch in archivos
+set nom to do shell script "basename " & quoted form of arch & " .xlsx"
+set nomC to do shell script "python3 " & quoted form of (tmpDir & "b.py") & " " & quoted form of nom
+set res to do shell script "python3 " & quoted form of (tmpDir & "c.py") & " " & quoted form of emails & " " & quoted form of nomC
+if res is not "NO" then
+set AppleScript's text item delimiters to "|"
+set p to text items of res
+set n to item 1 of p
+set e to item 2 of p
+set AppleScript's text item delimiters to ""
+set m to make new outgoing message with properties {subject:"Liquidaciones " & mes & " - " & n}
+set AppleScript's text item delimiters to ";"
+repeat with em in text items of e
+make new recipient at m with properties {email address:{address:em}}
+end repeat
+set AppleScript's text item delimiters to ""
+set c to "Buenos dias " & n & "," & return & return & "Te envio las liquidaciones del mes de " & mes & "." & return & return & return & "Un saludo," & return & return & "Fernando Araujo" & return & "DRK-SPAIN"
+set plain text content of m to c
+tell m
+make new attachment with properties {file:POSIX file arch}
 end tell
-
+open m
+set cont to cont + 1
+delay 1
+end if
+end repeat
+end tell
 do shell script "rm -rf " & quoted form of tmpDir
-display dialog "✅ Creados: " & cont buttons {"OK"} default button 1`;
-            
-            const blob = new Blob([scriptContent], { type: 'text/plain;charset=utf-8' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = 'Enviar_Liquidaciones_Outlook.scpt';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            showStatus('✅ Script descargado', 'success');
+display dialog "Creados: " & cont buttons {"OK"}`;
+                    
+                    const blob = new Blob([scriptContent], { type: 'text/plain;charset=utf-8' });
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = 'Automatico_Outlook.scpt';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    showStatus('✅ Script descargado', 'success');
+                });
         }
     </script>
 </body>
