@@ -1067,10 +1067,14 @@ for numero, info in sorted(datos.items()):
             end repeat
             
             -- Crear cuerpo
-            set contenido to "Buenos días " & nombreComercial & "," & return & return & return
-            set contenido to contenido & "Te envío las liquidaciones del mes de " & mesActual & "."
+            -- Crear cuerpo HTML para que respete los saltos de línea
+            set contenidoHTML to "<html><body style='font-family: Arial, sans-serif; font-size: 11pt;'>"
+            set contenidoHTML to contenidoHTML & "<p>Buenos días " & nombreComercial & ",</p>"
+            set contenidoHTML to contenidoHTML & "<p>&nbsp;</p>"
+            set contenidoHTML to contenidoHTML & "<p>Te envío las liquidaciones del mes de " & mesActual & ".</p>"
+            set contenidoHTML to contenidoHTML & "</body></html>"
             
-            set plain text content of nuevoEmail to contenido
+            set content of nuevoEmail to contenidoHTML
             
             -- Adjuntar archivo
             tell nuevoEmail
