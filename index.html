@@ -851,7 +851,7 @@ if archivoZIP is "" then
 display dialog "No ZIP" buttons {"OK"}
 return
 end if
-set archivoExcel to do shell script "find " & quoted form of rutaDescargas & " -maxdepth 1 -name '*comision*.xlsx' -type f -mtime -1 | head -1"
+set archivoExcel to do shell script "find " & quoted form of rutaDescargas & " -maxdepth 1 -iname '*comision*.xlsx' -type f -mtime -1 | head -1"
 if archivoExcel is "" then
 display dialog "No Excel" buttons {"OK"}
 return
