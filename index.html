@@ -255,15 +255,18 @@
         
         async function preguntarTarifaNueva(nombreTarifa) {
             return new Promise((resolve) => {
-                const comision = prompt(`⚠️ TARIFA NO ENCONTRADA: "${nombreTarifa}"\n\n¿Qué comisión debe aplicarse?\n(en €/MWh, número entero o decimal)\n\nEjemplos: 15, 18.5, 20`);
+                const comision = prompt(`⚠️ TARIFA NO ENCONTRADA: "${nombreTarifa}"\n\n¿Qué comisión debe aplicarse?\n(en €/MWh)\n\nEjemplos: 15  o  18,5  o  20.5`);
                 if (comision === null || comision.trim() === '') {
                     resolve(null);
                     return;
                 }
                 
-                const comisionNum = parseFloat(comision);
+                // Reemplazar coma por punto para parsing correcto
+                const comisionNormalizada = comision.replace(',', '.');
+                const comisionNum = parseFloat(comisionNormalizada);
+                
                 if (isNaN(comisionNum) || comisionNum <= 0) {
-                    alert('⚠️ Comisión inválida. Debe ser un número mayor que 0. Tarifa NO guardada.');
+                    alert(`⚠️ Comisión inválida: "${comision}"\nDebe ser un número mayor que 0.\n\nEjemplos válidos: 15, 18.5, 18,5, 20\n\nTarifa NO guardada.`);
                     resolve(null);
                     return;
                 }
@@ -285,16 +288,19 @@
                     return;
                 }
                 
-                const porcentaje = prompt(`Comercial: ${nombreComercial}\nNúmero: ${numero}\n\n¿Qué porcentaje de comisión?\n\nEjemplos:\n- Para 30% escribe: 0.30\n- Para 25% escribe: 0.25\n- Para 35% escribe: 0.35`);
+                const porcentaje = prompt(`Comercial: ${nombreComercial}\nNúmero: ${numero}\n\n¿Qué porcentaje de comisión?\n\nEjemplos:\n- Para 30% escribe: 0.30 o 0,30\n- Para 25% escribe: 0.25 o 0,25\n- Para 35% escribe: 0.35 o 0,35`);
                 if (porcentaje === null || porcentaje.trim() === '') {
                     alert('⚠️ Porcentaje no puede estar vacío. Comercial NO guardado.');
                     resolve(null);
                     return;
                 }
                 
-                const porcentajeNum = parseFloat(porcentaje);
+                // Reemplazar coma por punto para parsing correcto
+                const porcentajeNormalizado = porcentaje.replace(',', '.');
+                const porcentajeNum = parseFloat(porcentajeNormalizado);
+                
                 if (isNaN(porcentajeNum) || porcentajeNum <= 0) {
-                    alert('⚠️ Porcentaje inválido. Debe ser un número mayor que 0 (ej: 0.30). Comercial NO guardado.');
+                    alert(`⚠️ Porcentaje inválido: "${porcentaje}"\nDebe ser un número mayor que 0.\n\nEjemplos válidos: 0.30, 0,30, 0.25, 0,25\n\nComercial NO guardado.`);
                     resolve(null);
                     return;
                 }
