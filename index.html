@@ -189,6 +189,12 @@
         let processedDataByGroup = null;
         let allProcessedData = null;
         
+        // Nuevas estructuras para datos no encontrados
+        let tarifasNuevas = {}; // {nombreTarifa: {comision, tipo}}
+        let comercialesNuevos = {}; // {nombreComercial: {numero, porcentaje}}
+        let processingPaused = false;
+        let currentPendingData = null;
+        
         const fileInput = document.getElementById('fileInput');
         const uploadSection = document.getElementById('uploadSection');
         
@@ -247,6 +253,44 @@
             return '';
         }
         
+        async function preguntarTarifaNueva(nombreTarifa) {
+            return new Promise((resolve) => {
+                const comision = prompt(`⚠️ TARIFA NO ENCONTRADA: "${nombreTarifa}"\n\n¿Qué comisión debe aplicarse? (en €/MWh)`);
+                if (comision === null || comision.trim() === '') {
+                    resolve(null);
+                    return;
+                }
+                
+                const tipo = confirm(`Tarifa: ${nombreTarifa}\nComisión: ${comision} €/MWh\n\n¿Es tipo TOTAL (100%)?\n\nOK = TOTAL\nCancelar = REPARTO`);
+                
+                resolve({
+                    comision: parseFloat(comision),
+                    tipo: tipo ? 'TOTAL' : 'REPARTO'
+                });
+            });
+        }
+        
+        async function preguntarComercialNuevo(nombreComercial) {
+            return new Promise((resolve) => {
+                const numero = prompt(`⚠️ COMERCIAL NO ENCONTRADO: "${nombreComercial}"\n\n¿Qué número de comercial le asignamos?`);
+                if (numero === null || numero.trim() === '') {
+                    resolve(null);
+                    return;
+                }
+                
+                const porcentaje = prompt(`Comercial: ${nombreComercial}\nNúmero: ${numero}\n\n¿Qué porcentaje de comisión? (ej: 0.30 para 30%)`);
+                if (porcentaje === null || porcentaje.trim() === '') {
+                    resolve(null);
+                    return;
+                }
+                
+                resolve({
+                    numero: parseInt(numero),
+                    porcentaje: parseFloat(porcentaje)
+                });
+            });
+        }
+        
         function handleFile(file) {
             if (!file.name.match(/\.(xlsx|xls)$/)) {
                 showStatus('⚠️ Archivo inválido', 'error');
@@ -260,10 +304,10 @@
             document.getElementById('missingTariffs').style.display = 'none';
             
             const reader = new FileReader();
-            reader.onload = (e) => {
+            reader.onload = async (e) => {
                 try {
                     const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
-                    processExcel(wb);
+                    await processExcel(wb);
                 } catch (error) {
                     document.getElementById('loading').style.display = 'none';
                     showStatus('❌ Error: ' + error.message, 'error');
@@ -273,7 +317,7 @@
             reader.readAsArrayBuffer(file);
         }
         
-        function processExcel(wb) {
+        async function processExcel(wb) {
             try {
                 const sheetNames = wb.SheetNames;
                 const facturaSheet = wb.Sheets[sheetNames.find(n => n.toUpperCase().includes('FACTURA') || n.toUpperCase().includes('TOTAL'))];
@@ -324,35 +368,54 @@
                 const processed = [];
                 const tarifasNoEncontradas = new Set();
                 
-                facturaData.forEach(r => {
+                // Resetear tarifas y comerciales nuevos
+                tarifasNuevas = {};
+                comercialesNuevos = {};
+                
+                // Cambiar forEach a for...of para poder usar await
+                for (const r of facturaData) {
                     const comercial = r['Comercial'] || r['Identidad'] || '';
                     const grupoOriginal = r['Grupo'] || '';
                     const consumo = parseFloat(r['Consumo'] || 0);
-                    if (!grupoOriginal || !consumo) return;
+                    if (!grupoOriginal || !consumo) continue;
                     
                     const grupo = String(grupoOriginal).toUpperCase().trim();
                     
                     let tarifaData = tarifasMap[grupo];
                     
+                    // Primero buscar en tarifasNuevas (preguntadas previamente)
+                    if (!tarifaData && tarifasNuevas[grupo]) {
+                        tarifaData = tarifasNuevas[grupo];
+                    }
+                    
                     if (!tarifaData) {
                         const match = grupoOriginal.match(/\b(\d+)\b/g);
                         if (match) {
+                            // COMPORTAMIENTO ORIGINAL: Extrae número automáticamente
                             const numero = parseFloat(match[0]);
                             let tipoAuto = 'REPARTO';
                             if (grupo.includes('INDEX PLUS') || (grupo.includes('INDEX') && grupo.includes('PLUS'))) {
                                 tipoAuto = 'TOTAL';
                             }
                             tarifaData = { comision: numero, tipo: tipoAuto };
-                            tarifasNoEncontradas.add(JSON.stringify({ tarifa: grupoOriginal, comision: numero, tipo: tipoAuto }));
+                            tarifasNoEncontradas.add(JSON.stringify({ tarifa: grupoOriginal, comision: numero, tipo: tipoAuto, origen: 'Auto' }));
+                        } else {
+                            // NUEVO: No hay número - PREGUNTAR AL USUARIO
+                            const respuesta = await preguntarTarifaNueva(grupoOriginal);
+                            if (respuesta) {
+                                tarifasNuevas[grupo] = respuesta;
+                                tarifaData = respuesta;
+                            }
                         }
                     }
                     
-                    if (!tarifaData) return;
+                    if (!tarifaData) continue; // Skip si usuario canceló
                     
                     const comercialU = String(comercial).toUpperCase().trim();
                     let comercialInfo = comercialesMap[comercialU];
                     
                     if (!comercialInfo) {
+                        // Buscar parcial
                         for (let k in comercialesMap) {
                             if (comercialU.includes(k) || k.includes(comercialU)) {
                                 comercialInfo = comercialesMap[k];
@@ -361,7 +424,25 @@
                         }
                     }
                     
-                    if (!comercialInfo) return;
+                    // NUEVO: Si aún no se encuentra, buscar en comercialesNuevos
+                    if (!comercialInfo && comercialesNuevos[comercialU]) {
+                        comercialInfo = comercialesNuevos[comercialU];
+                    }
+                    
+                    // NUEVO: Si no existe, PREGUNTAR AL USUARIO
+                    if (!comercialInfo) {
+                        const respuesta = await preguntarComercialNuevo(comercial);
+                        if (respuesta) {
+                            comercialesNuevos[comercialU] = {
+                                numeroComercial: respuesta.numero,
+                                porcentaje: respuesta.porcentaje,
+                                nombreOriginal: comercial
+                            };
+                            comercialInfo = comercialesNuevos[comercialU];
+                        }
+                    }
+                    
+                    if (!comercialInfo) continue; // Skip si usuario canceló
                     
                     const numeroComercial = comercialInfo.numeroComercial;
                     const pctComercial = comercialInfo.porcentaje;
@@ -405,18 +486,31 @@
                         '_numComercial': numeroComercial,
                         '_agente': comercial
                     });
-                });
+                }
                 
-                if (tarifasNoEncontradas.size > 0) {
+                // Mostrar tarifas no encontradas
+                if (tarifasNoEncontradas.size > 0 || Object.keys(tarifasNuevas).length > 0) {
                     const missingDiv = document.getElementById('missingTariffs');
                     const missingList = document.getElementById('missingList');
                     missingList.innerHTML = '';
+                    
+                    // Tarifas automáticas (negro)
                     tarifasNoEncontradas.forEach(t => {
                         const obj = JSON.parse(t);
                         const li = document.createElement('li');
                         li.textContent = `${obj.tarifa} → ${obj.comision} [${obj.tipo}]`;
                         missingList.appendChild(li);
                     });
+                    
+                    // Tarifas preguntadas (rojo)
+                    for (const [nombre, data] of Object.entries(tarifasNuevas)) {
+                        const li = document.createElement('li');
+                        li.textContent = `${nombre} → ${data.comision} [${data.tipo}] ⚠️ MANUAL`;
+                        li.style.color = 'red';
+                        li.style.fontWeight = 'bold';
+                        missingList.appendChild(li);
+                    }
+                    
                     missingDiv.style.display = 'block';
                 }
                 
@@ -505,13 +599,95 @@
                 const ws = XLSX.utils.json_to_sheet(final, { cellFormula: true });
                 XLSX.utils.book_append_sheet(newWb, ws, 'Hoja1');
                 
-                if (tarifasNoEncontradas.size > 0) {
-                    const tarifasFaltantes = Array.from(tarifasNoEncontradas).map(t => {
+                // Hoja de tarifas no encontradas (incluye automáticas y manuales)
+                if (tarifasNoEncontradas.size > 0 || Object.keys(tarifasNuevas).length > 0) {
+                    const tarifasFaltantes = [];
+                    
+                    // Tarifas automáticas (con número extraído)
+                    tarifasNoEncontradas.forEach(t => {
                         const obj = JSON.parse(t);
-                        return { 'Tarifa': obj.tarifa, 'Comisión extraída': obj.comision, 'Tipo sugerido': obj.tipo };
+                        tarifasFaltantes.push({
+                            'Tarifa': obj.tarifa,
+                            'Comisión': obj.comision,
+                            'Tipo': obj.tipo,
+                            'Origen': 'Auto',
+                            '_estilo': 'normal'
+                        });
                     });
+                    
+                    // Tarifas manuales (preguntadas al usuario) - MARCAR EN ROJO
+                    for (const [nombre, data] of Object.entries(tarifasNuevas)) {
+                        tarifasFaltantes.push({
+                            'Tarifa': nombre,
+                            'Comisión': data.comision,
+                            'Tipo': data.tipo,
+                            'Origen': '⚠️ MANUAL',
+                            '_estilo': 'rojo'
+                        });
+                    }
+                    
                     const wsMissing = XLSX.utils.json_to_sheet(tarifasFaltantes);
+                    
+                    // Aplicar formato rojo a filas manuales
+                    const range = XLSX.utils.decode_range(wsMissing['!ref']);
+                    for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+                        const origenAddr = XLSX.utils.encode_cell({r: R, c: 3});
+                        const origenCell = wsMissing[origenAddr];
+                        
+                        if (origenCell && origenCell.v && origenCell.v.includes('MANUAL')) {
+                            // Colorear toda la fila en rojo
+                            for (let C = range.s.c; C <= range.e.c; ++C) {
+                                const cellAddr = XLSX.utils.encode_cell({r: R, c: C});
+                                if (!wsMissing[cellAddr]) {
+                                    wsMissing[cellAddr] = {t: 's', v: ''};
+                                }
+                                if (!wsMissing[cellAddr].s) {
+                                    wsMissing[cellAddr].s = {};
+                                }
+                                wsMissing[cellAddr].s = {
+                                    fill: {fgColor: {rgb: "FFFF0000"}},
+                                    font: {color: {rgb: "FFFFFFFF"}, bold: true}
+                                };
+                            }
+                        }
+                    }
+                    
                     XLSX.utils.book_append_sheet(newWb, wsMissing, 'TARIFAS_NO_ENCONTRADAS');
+                }
+                
+                // Hoja de comerciales no encontrados (solo manuales)
+                if (Object.keys(comercialesNuevos).length > 0) {
+                    const comercialesFaltantes = [];
+                    
+                    for (const [nombre, data] of Object.entries(comercialesNuevos)) {
+                        comercialesFaltantes.push({
+                            'Comercial': data.nombreOriginal || nombre,
+                            'Número': data.numeroComercial,
+                            'Porcentaje': data.porcentaje
+                        });
+                    }
+                    
+                    const wsComerciales = XLSX.utils.json_to_sheet(comercialesFaltantes);
+                    
+                    // Colorear TODO en rojo (son todos manuales)
+                    const range = XLSX.utils.decode_range(wsComerciales['!ref']);
+                    for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+                        for (let C = range.s.c; C <= range.e.c; ++C) {
+                            const cellAddr = XLSX.utils.encode_cell({r: R, c: C});
+                            if (!wsComerciales[cellAddr]) {
+                                wsComerciales[cellAddr] = {t: 's', v: ''};
+                            }
+                            if (!wsComerciales[cellAddr].s) {
+                                wsComerciales[cellAddr].s = {};
+                            }
+                            wsComerciales[cellAddr].s = {
+                                fill: {fgColor: {rgb: "FFFF0000"}},
+                                font: {color: {rgb: "FFFFFFFF"}, bold: true}
+                            };
+                        }
+                    }
+                    
+                    XLSX.utils.book_append_sheet(newWb, wsComerciales, 'COMERCIALES_NO_ENCONTRADOS');
                 }
                 
                 processedWorkbook = newWb;
