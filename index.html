@@ -844,9 +844,10 @@ for numero, info in sorted(datos.items()):
             
             -- Crear cuerpo
             set contenido to "Buenos días " & nombreComercial & "," & return & return
-            set contenido to contenido & "Te envío las liquidaciones del mes de " & mesActual & "." & return & return
-            set contenido to contenido & "Un saludo," & return
-            set contenido to contenido & nombreRemitente
+            set contenido to contenido & "Te envío las liquidaciones del mes de " & mesActual & "." & return & return & return
+            set contenido to contenido & "Un saludo," & return & return
+            set contenido to contenido & "Fernando Araujo" & return
+            set contenido to contenido & "DRK-SPAIN"
             
             set plain text content of nuevoEmail to contenido
             
