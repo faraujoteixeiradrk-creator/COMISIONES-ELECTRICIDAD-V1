@@ -694,9 +694,18 @@ end if
 
 -- Leer datos de emails usando Python
 set scriptPython to "
-import openpyxl
-import json
 import sys
+import subprocess
+
+# Intentar importar openpyxl, si falla, instalarlo automáticamente
+try:
+    import openpyxl
+except ImportError:
+    print('Instalando openpyxl...')
+    subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--user', 'openpyxl'])
+    import openpyxl
+
+import json
 
 try:
     wb = openpyxl.load_workbook('" & archivoExcelOriginal & "', data_only=True)
