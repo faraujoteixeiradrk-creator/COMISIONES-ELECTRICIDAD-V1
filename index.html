@@ -471,19 +471,12 @@
                     if (!comercialInfo) {
                         const respuesta = await preguntarComercialNuevo(comercial);
                         if (respuesta) {
-                            // Guardar con el nombre ORIGINAL de la factura
                             comercialesNuevos[comercialU] = {
                                 numeroComercial: respuesta.numero,
                                 porcentaje: respuesta.porcentaje,
-                                nombreOriginal: comercial // Nombre exacto de la factura
+                                nombreOriginal: comercial
                             };
                             comercialInfo = comercialesNuevos[comercialU];
-                            
-                            // También actualizar numeroComercialMap para el resumen
-                            if (!numeroComercialMap[respuesta.numero]) {
-                                numeroComercialMap[respuesta.numero] = { nombres: [], porcentaje: respuesta.porcentaje };
-                            }
-                            numeroComercialMap[respuesta.numero].nombres.push(comercial);
                         }
                     }
                     
@@ -704,12 +697,9 @@
                 if (Object.keys(comercialesNuevos).length > 0) {
                     const comercialesFaltantes = [];
                     
-                    for (const [clave, data] of Object.entries(comercialesNuevos)) {
-                        // Usar nombreOriginal si existe, si no usar la clave (que es comercialU en mayúsculas)
-                        const nombreMostrar = data.nombreOriginal || clave;
-                        
+                    for (const [nombre, data] of Object.entries(comercialesNuevos)) {
                         comercialesFaltantes.push({
-                            'Comercial': nombreMostrar,
+                            'Comercial': data.nombreOriginal || nombre,
                             'Número': data.numeroComercial,
                             'Porcentaje': data.porcentaje
                         });
@@ -973,7 +963,7 @@ try:
             else:
                 # Extraer números del texto (ej: 'A00003' -> '03')
                 import re
-                nums = re.findall(r'\\d+', str(num_comercial))
+                nums = re.findall(r'\\\\d+', str(num_comercial))
                 if nums:
                     numero = str(int(nums[0])).zfill(2)
                 else:
@@ -1047,16 +1037,7 @@ for numero, info in sorted(datos.items()):
         -- Buscar archivo Excel correspondiente
         set archivoEncontrado to missing value
         repeat with archivoPath in archivosExcel
-            -- Buscar por número comercial (ej: "60_")
             if archivoPath contains (numeroComercial & "_") then
-                set archivoEncontrado to archivoPath
-                exit repeat
-            end if
-            
-            -- Si no encuentra por número, buscar por nombre del comercial
-            -- Limpiar nombre para comparar (quitar espacios, mayúsculas)
-            set nombreLimpio to do shell script "echo " & quoted form of nombreComercial & " | sed 's/ /_/g' | tr '[:lower:]' '[:upper:]'"
-            if archivoPath contains nombreLimpio then
                 set archivoEncontrado to archivoPath
                 exit repeat
             end if
