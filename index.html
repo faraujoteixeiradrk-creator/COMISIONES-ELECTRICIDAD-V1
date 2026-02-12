@@ -620,18 +620,35 @@
                 const totalIVA = total * 1.21;
                 
                 final.push({});
-                final.push({ 'Agente': '=== RESUMEN (SIN IVA) ===' });
-                final.push({});
+                const rowResumenStart = currentRow + 1; // Fila donde empieza "=== RESUMEN ==="
+                currentRow++;
                 
+                final.push({ 'Agente': '=== RESUMEN (SIN IVA) ===' });
+                currentRow++;
+                
+                final.push({});
+                currentRow++;
+                
+                const rowPrimeraComision = currentRow + 1; // Primera fila del resumen de comisiones
                 resumen.sort((a, b) => parseInt(a.numeroComercial) - parseInt(b.numeroComercial));
                 resumen.forEach(i => {
                     final.push({ 'Agente': i.nombre, 'Numero': i.numeroComercial, 'Comisión': i.subtotal.toFixed(2) + ' €' });
+                    currentRow++;
                 });
+                const rowUltimaComision = currentRow; // Última fila con comisión
                 
                 final.push({});
+                currentRow++;
                 final.push({});
-                final.push({ 'Agente': 'TOTAL GENERAL:', 'Comisión': total.toFixed(2) + ' €' });
-                final.push({ 'Agente': 'TOTAL CON IVA:', 'Comisión': totalIVA.toFixed(2) + ' €' });
+                currentRow++;
+                
+                // TOTAL GENERAL con fórmula
+                final.push({ 'Agente': 'TOTAL GENERAL:', 'Comisión': { f: `SUM(C${rowPrimeraComision}:C${rowUltimaComision})` } });
+                currentRow++;
+                
+                // TOTAL CON IVA con fórmula basada en la celda anterior
+                final.push({ 'Agente': 'TOTAL CON IVA:', 'Comisión': { f: `C${currentRow}*1.21` } });
+                currentRow++;
                 
                 const newWb = XLSX.utils.book_new();
                 const ws = XLSX.utils.json_to_sheet(final, { cellFormula: true });
