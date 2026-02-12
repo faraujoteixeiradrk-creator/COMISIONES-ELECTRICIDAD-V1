@@ -471,12 +471,19 @@
                     if (!comercialInfo) {
                         const respuesta = await preguntarComercialNuevo(comercial);
                         if (respuesta) {
+                            // Guardar con el nombre ORIGINAL de la factura
                             comercialesNuevos[comercialU] = {
                                 numeroComercial: respuesta.numero,
                                 porcentaje: respuesta.porcentaje,
-                                nombreOriginal: comercial
+                                nombreOriginal: comercial // Nombre exacto de la factura
                             };
                             comercialInfo = comercialesNuevos[comercialU];
+                            
+                            // También actualizar numeroComercialMap para el resumen
+                            if (!numeroComercialMap[respuesta.numero]) {
+                                numeroComercialMap[respuesta.numero] = { nombres: [], porcentaje: respuesta.porcentaje };
+                            }
+                            numeroComercialMap[respuesta.numero].nombres.push(comercial);
                         }
                     }
                     
@@ -697,9 +704,12 @@
                 if (Object.keys(comercialesNuevos).length > 0) {
                     const comercialesFaltantes = [];
                     
-                    for (const [nombre, data] of Object.entries(comercialesNuevos)) {
+                    for (const [clave, data] of Object.entries(comercialesNuevos)) {
+                        // Usar nombreOriginal si existe, si no usar la clave (que es comercialU en mayúsculas)
+                        const nombreMostrar = data.nombreOriginal || clave;
+                        
                         comercialesFaltantes.push({
-                            'Comercial': data.nombreOriginal || nombre,
+                            'Comercial': nombreMostrar,
                             'Número': data.numeroComercial,
                             'Porcentaje': data.porcentaje
                         });
