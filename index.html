@@ -1,410 +1,1505 @@
-# FASE 1 - CÓDIGO COMPLETO PARA AÑADIR
-
-## UBICACIÓN: Después de la función processExcel (línea ~750)
-
-```javascript
-// ========================================
-// PROCESAMIENTO DE GAS - FASE 1
-// ========================================
-
-async function processGas(wb) {
-    try {
-        // Leer hojas de GAS
-        const sheetNames = wb.SheetNames;
-        const datosGasSheet = wb.Sheets['DATOSGAS'] || wb.Sheets['DatosGas'] || wb.Sheets['datosgas'];
-        const comercialesGasSheet = wb.Sheets['COMERCIALESGAS'] || wb.Sheets['ComercialesGas'] || wb.Sheets['comercialesgas'];
-        const facturasGasSheet = wb.Sheets[sheetNames.find(n => n.toUpperCase().includes('FACTURASGAS') || n.toUpperCase().includes('FACTURAS GAS'))];
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Liquidaciones Comerciales - ELECTRICIDAD + GAS</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 { font-size: 2em; margin-bottom: 10px; }
+        .header p { opacity: 0.9; font-size: 1.1em; }
+        .header .subtitle { opacity: 0.8; font-size: 0.9em; margin-top: 5px; }
+        .content { padding: 40px; }
+        .upload-section {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 30px;
+            background: #f8f9ff;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        .upload-section:hover { border-color: #764ba2; background: #f0f2ff; }
+        .upload-section.dragover { background: #e8ebff !important; border-color: #764ba2 !important; transform: scale(1.02); }
+        input[type="file"] { display: none; }
+        .upload-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 40px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin: 5px;
+        }
+        .upload-btn:hover { transform: translateY(-2px); }
+        .status { margin-top: 20px; padding: 15px; border-radius: 10px; display: none; }
+        .status.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; display: block; }
+        .status.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; display: block; }
+        .download-section { display: none; text-align: center; margin-top: 30px; padding: 30px; background: #f8f9ff; border-radius: 15px; }
+        .download-btn {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            padding: 15px 40px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.1em;
+            cursor: pointer;
+            margin: 10px;
+            transition: all 0.3s;
+        }
+        .download-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.3); }
+        .download-btn.secondary {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        .download-btn.script {
+            background: linear-gradient(135deg, #FF6B6B 0%, #FFE66D 100%);
+        }
+        .loading { text-align: center; padding: 20px; display: none; }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .instructions {
+            background: #fff9e6;
+            border-left: 4px solid #ffc107;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-radius: 5px;
+        }
+        .instructions h3 { color: #856404; margin-bottom: 10px; }
+        .instructions ul { margin-left: 20px; color: #856404; }
+        .instructions li { margin: 5px 0; }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .stat-card h3 { font-size: 2em; margin-bottom: 5px; }
+        .stat-card p { opacity: 0.9; font-size: 0.9em; }
+        .drag-icon { font-size: 3em; margin-bottom: 10px; }
+        .missing-tariffs {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+            display: none;
+        }
+        .missing-tariffs h4 { color: #856404; margin-bottom: 10px; }
+        .missing-tariffs ul { margin-left: 20px; color: #856404; max-height: 200px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💼 Calculadora de Liquidaciones Comerciales</h1>
+            <p>ELECTRICIDAD + GAS</p>
+            <p class="subtitle">Con fórmulas Excel y exportación por comercial</p>
+        </div>
         
-        if (!facturasGasSheet) {
-            console.log('No se encontró hoja de facturas de GAS');
-            return null;
+        <div class="content">
+            <div class="instructions">
+                <h3>📋 Funcionalidades:</h3>
+                <ul>
+                    <li><strong>Fórmulas Excel</strong> en subtotales para verificación</li>
+                    <li><strong>Exportar todo</strong> → Un Excel completo</li>
+                    <li><strong>Exportar por comercial</strong> → Un ZIP con archivos separados</li>
+                    <li><strong>Script Mac</strong> → Abre Outlook automáticamente (requiere descarga separada)</li>
+                    <li><strong>INDEX PLUS</strong> → TOTAL (100%) | <strong>Resto</strong> → REPARTO</li>
+                </ul>
+            </div>
+            
+            <div class="upload-section" id="uploadSection">
+                <div class="drag-icon">📁</div>
+                <h2>Arrastra tu Excel aquí</h2>
+                <p style="margin: 20px 0; color: #666;">o haz clic para seleccionar</p>
+                <label for="fileInput" class="upload-btn">Seleccionar Excel</label>
+                <input type="file" id="fileInput" accept=".xlsx,.xls">
+            </div>
+            
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p style="margin-top: 15px; color: #667eea;">Procesando...</p>
+            </div>
+            
+            <div class="status" id="status"></div>
+            
+            <div class="missing-tariffs" id="missingTariffs">
+                <h4>⚠️ Tarifas extraídas automáticamente:</h4>
+                <ul id="missingList"></ul>
+                <p style="margin-top: 10px;"><strong>Hoja "TARIFAS_NO_ENCONTRADAS" creada</strong></p>
+            </div>
+            
+            <div id="statsContainer"></div>
+            
+            <div class="download-section" id="downloadSection">
+                <h2>✅ Procesamiento Completado</h2>
+                <p style="margin: 15px 0;">Elige cómo descargar:</p>
+                <button class="download-btn" id="downloadBtn">📥 Descargar Todo (Excel completo)</button>
+                <br>
+                <button class="download-btn secondary" id="downloadByComercialBtn">📦 Descargar por Comercial (ZIP)</button>
+                <br>
+                <button class="download-btn script" id="downloadScriptBtn">🍎 Descargar Script Mac</button>
+                <p style="margin-top: 10px; font-size: 0.85em; color: #666;">
+                    💡 <strong>Mac:</strong> Descarga ZIP + Script → Ejecuta el script → Outlook se abre con todos los emails
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ELECTRICIDAD
+        let processedWorkbook = null;
+        let processedDataByGroup = null;
+        let allProcessedData = null;
+        
+        // GAS (nuevo)
+        let processedWorkbookGas = null;
+        let processedDataByGroupGas = null;
+        let allProcessedDataGas = null;
+        
+        // Nuevas estructuras para datos no encontrados (Electricidad)
+        let tarifasNuevas = {}; // {nombreTarifa: {comision, tipo}}
+        let comercialesNuevos = {}; // {nombreComercial: {numero, porcentaje}}
+        
+        // Nuevas estructuras para datos no encontrados (GAS)
+        let tarifasGasNuevas = {}; // {nombreTarifa: {RL1, RL2, RL3, RL4, RL5}}
+        let comercialesGasNuevos = {}; // {nombreComercial: {numero, porcentaje}}
+        
+        let processingPaused = false;
+        let currentPendingData = null;
+        
+        const fileInput = document.getElementById('fileInput');
+        const uploadSection = document.getElementById('uploadSection');
+        
+        uploadSection.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) handleFile(e.target.files[0]);
+        });
+        
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadSection.addEventListener(eventName, (e) => { e.preventDefault(); e.stopPropagation(); }, false);
+        });
+        
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadSection.addEventListener(eventName, () => uploadSection.classList.add('dragover'), false);
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadSection.addEventListener(eventName, () => uploadSection.classList.remove('dragover'), false);
+        });
+        
+        uploadSection.addEventListener('drop', (e) => {
+            const files = e.dataTransfer.files;
+            if (files.length > 0) handleFile(files[0]);
+        }, false);
+        
+        document.getElementById('downloadBtn').addEventListener('click', downloadFile);
+        document.getElementById('downloadByComercialBtn').addEventListener('click', downloadByComercial);
+        document.getElementById('downloadScriptBtn').addEventListener('click', downloadScript);
+        
+        function showStatus(msg, type) {
+            const s = document.getElementById('status');
+            s.textContent = msg;
+            s.className = 'status ' + type;
         }
         
-        // Procesar DATOSGAS
-        const tarifasGasMap = {};
-        if (datosGasSheet) {
-            const datosGasRaw = XLSX.utils.sheet_to_json(datosGasSheet, { header: 1 });
-            
-            for (let i = 1; i < datosGasRaw.length; i++) {
-                const row = datosGasRaw[i];
-                if (!row[0]) continue;
-                
-                const tarifa = String(row[0]).toUpperCase().trim();
-                tarifasGasMap[tarifa] = {
-                    'RL.1': parseFloat(row[1]) || 0,
-                    'RL. 1': parseFloat(row[1]) || 0,
-                    'RL1': parseFloat(row[1]) || 0,
-                    'RL.2': parseFloat(row[2]) || 0,
-                    'RL. 2': parseFloat(row[2]) || 0,
-                    'RL2': parseFloat(row[2]) || 0,
-                    'RL.3': parseFloat(row[3]) || 0,
-                    'RL. 3': parseFloat(row[3]) || 0,
-                    'RL3': parseFloat(row[3]) || 0,
-                    'RL.4': parseFloat(row[4]) || 0,
-                    'RL. 4': parseFloat(row[4]) || 0,
-                    'RL4': parseFloat(row[4]) || 0,
-                    'RL.5': parseFloat(row[5]) || 0,
-                    'RL. 5': parseFloat(row[5]) || 0,
-                    'RL5': parseFloat(row[5]) || 0
-                };
+        function limpiarNombre(nombre) {
+            return nombre.replace(/[:\\\/\?\*\[\]]/g, '-').substring(0, 31);
+        }
+        
+        function formatearFecha(fecha) {
+            if (!fecha) return '';
+            if (typeof fecha === 'string' && fecha.includes('-')) {
+                const d = new Date(fecha);
+                if (!isNaN(d.getTime())) {
+                    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+                }
+                return fecha;
             }
+            if (fecha instanceof Date && !isNaN(fecha.getTime())) {
+                return `${String(fecha.getDate()).padStart(2, '0')}/${String(fecha.getMonth() + 1).padStart(2, '0')}/${fecha.getFullYear()}`;
+            }
+            if (typeof fecha === 'number') {
+                const d = new Date((fecha - 25569) * 86400 * 1000);
+                return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`;
+            }
+            return '';
         }
         
-        // Procesar COMERCIALESGAS
-        const comercialesGasMap = {};
-        const numeroComercialGasMap = {};
-        
-        if (comercialesGasSheet) {
-            const comercialesGasRaw = XLSX.utils.sheet_to_json(comercialesGasSheet, { header: 1 });
-            
-            for (let i = 1; i < comercialesGasRaw.length; i++) {
-                const row = comercialesGasRaw[i];
-                if (!row[0]) continue;
-                
-                const agente = String(row[0]).toUpperCase().trim();
-                const numeroComercial = row[1];
-                const porcentaje = parseFloat(row[2]) || 0;
-                
-                let numero;
-                if (typeof numeroComercial === 'number') {
-                    numero = String(Math.floor(numeroComercial)).padStart(2, '0');
-                } else {
-                    const nums = String(numeroComercial).match(/\d+/);
-                    numero = nums ? String(parseInt(nums[0])).padStart(2, '0') : '00';
+        async function preguntarTarifaNueva(nombreTarifa) {
+            return new Promise((resolve) => {
+                const comision = prompt(`⚠️ TARIFA NO ENCONTRADA: "${nombreTarifa}"\n\n¿Qué comisión debe aplicarse?\n(en €/MWh)\n\nEjemplos: 15  o  18,5  o  20.5`);
+                if (comision === null || comision.trim() === '') {
+                    resolve(null);
+                    return;
                 }
                 
-                comercialesGasMap[agente] = {
-                    numeroComercial: numero,
-                    porcentaje: porcentaje,
-                    nombreOriginal: row[0]
-                };
+                // Reemplazar coma por punto para parsing correcto
+                const comisionNormalizada = comision.replace(',', '.');
+                const comisionNum = parseFloat(comisionNormalizada);
                 
-                if (!numeroComercialGasMap[numero]) {
-                    numeroComercialGasMap[numero] = { nombres: [], porcentaje: porcentaje };
+                if (isNaN(comisionNum) || comisionNum <= 0) {
+                    alert(`⚠️ Comisión inválida: "${comision}"\nDebe ser un número mayor que 0.\n\nEjemplos válidos: 15, 18.5, 18,5, 20\n\nTarifa NO guardada.`);
+                    resolve(null);
+                    return;
                 }
-                numeroComercialGasMap[numero].nombres.push(row[0]);
-            }
+                
+                const tipo = confirm(`Tarifa: ${nombreTarifa}\nComisión: ${comisionNum} €/MWh\n\n¿Es tipo TOTAL (100%)?\n\nOK = TOTAL (el comercial recibe el 100%)\nCancelar = REPARTO (el comercial recibe su %)`);
+                
+                resolve({
+                    comision: comisionNum,
+                    tipo: tipo ? 'TOTAL' : 'REPARTO'
+                });
+            });
         }
         
-        // Procesar FACTURASGAS
-        const facturaGasData = XLSX.utils.sheet_to_json(facturasGasSheet);
-        const processedGas = [];
-        const tarifasGasNoEncontradas = new Set();
+        async function preguntarComercialNuevo(nombreComercial) {
+            return new Promise((resolve) => {
+                const numero = prompt(`⚠️ COMERCIAL NO ENCONTRADO: "${nombreComercial}"\n\n¿Qué número de comercial le asignamos?`);
+                if (numero === null || numero.trim() === '') {
+                    resolve(null);
+                    return;
+                }
+                
+                const porcentaje = prompt(`Comercial: ${nombreComercial}\nNúmero: ${numero}\n\n¿Qué porcentaje de comisión?\n\nEjemplos:\n- Para 30% escribe: 0.30 o 0,30\n- Para 25% escribe: 0.25 o 0,25\n- Para 35% escribe: 0.35 o 0,35`);
+                if (porcentaje === null || porcentaje.trim() === '') {
+                    alert('⚠️ Porcentaje no puede estar vacío. Comercial NO guardado.');
+                    resolve(null);
+                    return;
+                }
+                
+                // Reemplazar coma por punto para parsing correcto
+                const porcentajeNormalizado = porcentaje.replace(',', '.');
+                const porcentajeNum = parseFloat(porcentajeNormalizado);
+                
+                if (isNaN(porcentajeNum) || porcentajeNum <= 0) {
+                    alert(`⚠️ Porcentaje inválido: "${porcentaje}"\nDebe ser un número mayor que 0.\n\nEjemplos válidos: 0.30, 0,30, 0.25, 0,25\n\nComercial NO guardado.`);
+                    resolve(null);
+                    return;
+                }
+                
+                resolve({
+                    numero: parseInt(numero),
+                    porcentaje: porcentajeNum
+                });
+            });
+        }
         
-        // Resetear tarifas y comerciales nuevos de gas
-        tarifasGasNuevas = {};
-        comercialesGasNuevos = {};
-        
-        for (const r of facturaGasData) {
-            const comercial = r['Comercial'] || r['Identidad'] || '';
-            const grupoOriginal = r['Grupo'] || '';
-            const tarifaPeaje = r['Tarifa Peaje'] || r['TarifaPeaje'] || '';
-            const consumo = parseFloat(r['Consumo'] || 0);
-            
-            if (!grupoOriginal || !consumo || !tarifaPeaje) continue;
-            
-            const grupo = String(grupoOriginal).toUpperCase().trim();
-            const peaje = String(tarifaPeaje).toUpperCase().trim();
-            
-            // Buscar comisión base en DATOSGAS
-            let comisionBase = 0;
-            let tarifaData = tarifasGasMap[grupo];
-            
-            if (tarifaData) {
-                comisionBase = tarifaData[peaje] || 0;
-            } else {
-                // Tarifa no encontrada - en Fase 4 preguntaremos
-                tarifasGasNoEncontradas.add(JSON.stringify({ 
-                    tarifa: grupoOriginal, 
-                    peaje: peaje 
-                }));
-                continue;
+        function handleFile(file) {
+            if (!file.name.match(/\.(xlsx|xls)$/)) {
+                showStatus('⚠️ Archivo inválido', 'error');
+                return;
             }
             
-            // Buscar comercial en COMERCIALESGAS
-            const comercialU = String(comercial).toUpperCase().trim();
-            let comercialInfo = comercialesGasMap[comercialU];
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('downloadSection').style.display = 'none';
+            document.getElementById('statsContainer').innerHTML = '';
+            document.getElementById('status').style.display = 'none';
+            document.getElementById('missingTariffs').style.display = 'none';
             
-            if (!comercialInfo) {
-                // Búsqueda parcial
-                for (let k in comercialesGasMap) {
-                    if (comercialU.includes(k) || k.includes(comercialU)) {
-                        comercialInfo = comercialesGasMap[k];
-                        break;
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+                    await processExcel(wb);
+                } catch (error) {
+                    document.getElementById('loading').style.display = 'none';
+                    showStatus('❌ Error: ' + error.message, 'error');
+                    console.error(error);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+        
+        async function processExcel(wb) {
+            try {
+                const sheetNames = wb.SheetNames;
+                const facturaSheet = wb.Sheets[sheetNames.find(n => n.toUpperCase().includes('FACTURA') || n.toUpperCase().includes('TOTAL'))];
+                const datosSheet = wb.Sheets['DATOS'] || wb.Sheets['Datos'];
+                const comisionesSheet = wb.Sheets['COMISIONES'] || wb.Sheets['Comisiones'];
+                
+                if (!facturaSheet || !datosSheet || !comisionesSheet) {
+                    throw new Error('Faltan hojas necesarias');
+                }
+                
+                const facturaData = XLSX.utils.sheet_to_json(facturaSheet);
+                const datosRaw = XLSX.utils.sheet_to_json(datosSheet, { header: 1 });
+                const comisionesRaw = XLSX.utils.sheet_to_json(comisionesSheet, { header: 1 });
+                
+                const tarifasMap = {};
+                for (let i = 1; i < datosRaw.length; i++) {
+                    if (datosRaw[i][0] && datosRaw[i][1] !== 'X') {
+                        const tarifa = String(datosRaw[i][0]).toUpperCase().trim();
+                        const comision = parseFloat(datosRaw[i][1]) || 0;
+                        const tipo = datosRaw[i][2] ? String(datosRaw[i][2]).toUpperCase().trim() : null;
+                        tarifasMap[tarifa] = { comision: comision, tipo: tipo };
                     }
                 }
-            }
-            
-            if (!comercialInfo) {
-                // Comercial no encontrado - en Fase 4 preguntaremos
-                continue;
-            }
-            
-            const numeroComercial = comercialInfo.numeroComercial;
-            const pctComercial = comercialInfo.porcentaje;
-            
-            // FÓRMULA GAS: (Consumo / 1000) * ComisiónBase * %Comercial
-            const consumoMWh = consumo / 1000;
-            const comisionCalculada = consumoMWh * comisionBase * pctComercial;
-            const formulaCalculo = `(${consumo}/1000)*${comisionBase}*${pctComercial.toFixed(2)}=${comisionCalculada.toFixed(2)} [GAS]`;
-            
-            // Extraer Serie y Número
-            const serieNumero = r['Serie/Numero'] || r['Serie'] || '';
-            let serie = '', numero = '';
-            const match = String(serieNumero).match(/^([A-Z]+)(\d+)$/i);
-            if (match) { 
-                serie = match[1]; 
-                numero = match[2]; 
-            }
-            
-            // Formatear fechas
-            const formatearFecha = (fecha) => {
-                if (!fecha) return '';
-                if (fecha instanceof Date) {
-                    return fecha.toLocaleDateString('es-ES');
+                
+                const comercialesMap = {};
+                const numeroComercialMap = {};
+                
+                for (let i = 1; i < comisionesRaw.length; i++) {
+                    if (comisionesRaw[i][0]) {
+                        const agente = String(comisionesRaw[i][0]).trim();
+                        const agenteUpper = agente.toUpperCase();
+                        const numeroComercial = comisionesRaw[i][1];
+                        const porcentaje = parseFloat(comisionesRaw[i][2]) || 0;
+                        
+                        comercialesMap[agenteUpper] = {
+                            numeroComercial: numeroComercial,
+                            porcentaje: porcentaje,
+                            nombreOriginal: agente
+                        };
+                        
+                        if (!numeroComercialMap[numeroComercial]) {
+                            numeroComercialMap[numeroComercial] = { nombres: [], porcentaje: porcentaje };
+                        }
+                        numeroComercialMap[numeroComercial].nombres.push(agente);
+                    }
                 }
-                return String(fecha);
-            };
-            
-            processedGas.push({
-                'X': 'SigeCom.DTO.TablasMaestras.AgenteComisionDetailsDTO',
-                'Agente': 'GAS-' + comercial,
-                'Tipo Comision': 'Importe € kWh facturado',
-                'Fecha': '',
-                'Comisión': parseFloat(comisionCalculada.toFixed(2)),
-                'Serie': serie,
-                'Numero': numero,
-                'Importe Base': consumo,
-                'Código Contrato': r['Contrato'] || '',
-                'Fecha Activación': '',
-                'CUPS': r['CUPS'] || '',
-                'Identidad': r['Identidad'] || '',
-                'Fecha Contratación': formatearFecha(r['Fecha Factura']),
-                'Fecha Desde': formatearFecha(r['Fecha Inicio Suministro']),
-                'Fecha Hasta': formatearFecha(r['Fecha Fin Suministro']),
-                'Grupo': grupoOriginal,
-                'Cliente': r['Cliente'] || '',
-                'Dirección': r['Dirección'] || '',
-                'Tarifa Peaje': tarifaPeaje,
-                'Tarifa': r['Tarifa'] || '',
-                'Fórmula Cálculo': formulaCalculo,
-                '_numComercial': numeroComercial,
-                '_agente': comercial
-            });
+                
+                const processed = [];
+                const tarifasNoEncontradas = new Set();
+                
+                // Resetear tarifas y comerciales nuevos
+                tarifasNuevas = {};
+                comercialesNuevos = {};
+                
+                // Cambiar forEach a for...of para poder usar await
+                for (const r of facturaData) {
+                    const comercial = r['Comercial'] || r['Identidad'] || '';
+                    const grupoOriginal = r['Grupo'] || '';
+                    const consumo = parseFloat(r['Consumo'] || 0);
+                    if (!grupoOriginal || !consumo) continue;
+                    
+                    const grupo = String(grupoOriginal).toUpperCase().trim();
+                    
+                    let tarifaData = tarifasMap[grupo];
+                    
+                    // Primero buscar en tarifasNuevas (preguntadas previamente)
+                    if (!tarifaData && tarifasNuevas[grupo]) {
+                        tarifaData = tarifasNuevas[grupo];
+                    }
+                    
+                    if (!tarifaData) {
+                        // Buscar números en el nombre de la tarifa
+                        const match = grupoOriginal.match(/\b(\d+)\b/g);
+                        
+                        if (match) {
+                            // Filtrar años (2020-2099) que probablemente sean parte del nombre, no FEE
+                            const numerosValidos = match.filter(num => {
+                                const valor = parseInt(num);
+                                return valor < 2020 || valor > 2099; // Excluir rango de años
+                            });
+                            
+                            if (numerosValidos.length > 0) {
+                                // COMPORTAMIENTO ORIGINAL: Extrae número automáticamente
+                                const numero = parseFloat(numerosValidos[0]);
+                                let tipoAuto = 'REPARTO';
+                                if (grupo.includes('INDEX PLUS') || (grupo.includes('INDEX') && grupo.includes('PLUS'))) {
+                                    tipoAuto = 'TOTAL';
+                                }
+                                tarifaData = { comision: numero, tipo: tipoAuto };
+                                tarifasNoEncontradas.add(JSON.stringify({ tarifa: grupoOriginal, comision: numero, tipo: tipoAuto, origen: 'Auto' }));
+                            } else {
+                                // El único número es un año - PREGUNTAR AL USUARIO
+                                const respuesta = await preguntarTarifaNueva(grupoOriginal);
+                                if (respuesta) {
+                                    tarifasNuevas[grupo] = respuesta;
+                                    tarifaData = respuesta;
+                                }
+                            }
+                        } else {
+                            // NUEVO: No hay número - PREGUNTAR AL USUARIO
+                            const respuesta = await preguntarTarifaNueva(grupoOriginal);
+                            if (respuesta) {
+                                tarifasNuevas[grupo] = respuesta;
+                                tarifaData = respuesta;
+                            }
+                        }
+                    }
+                    
+                    if (!tarifaData) continue; // Skip si usuario canceló
+                    
+                    const comercialU = String(comercial).toUpperCase().trim();
+                    let comercialInfo = comercialesMap[comercialU];
+                    
+                    if (!comercialInfo) {
+                        // Buscar parcial
+                        for (let k in comercialesMap) {
+                            if (comercialU.includes(k) || k.includes(comercialU)) {
+                                comercialInfo = comercialesMap[k];
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // NUEVO: Si aún no se encuentra, buscar en comercialesNuevos
+                    if (!comercialInfo && comercialesNuevos[comercialU]) {
+                        comercialInfo = comercialesNuevos[comercialU];
+                    }
+                    
+                    // NUEVO: Si no existe, PREGUNTAR AL USUARIO
+                    if (!comercialInfo) {
+                        const respuesta = await preguntarComercialNuevo(comercial);
+                        if (respuesta) {
+                            comercialesNuevos[comercialU] = {
+                                numeroComercial: respuesta.numero,
+                                porcentaje: respuesta.porcentaje,
+                                nombreOriginal: comercial
+                            };
+                            comercialInfo = comercialesNuevos[comercialU];
+                        }
+                    }
+                    
+                    if (!comercialInfo) continue; // Skip si usuario canceló
+                    
+                    const numeroComercial = comercialInfo.numeroComercial;
+                    const pctComercial = comercialInfo.porcentaje;
+                    let pctFinal = pctComercial;
+                    let tipoAplicado = tarifaData.tipo || 'REPARTO';
+                    
+                    if (tipoAplicado === 'TOTAL') pctFinal = 1.0;
+                    
+                    const consumoMWh = consumo / 1000;
+                    const comision = tarifaData.comision;
+                    const comisionCalculada = consumoMWh * comision * pctFinal;
+                    const formulaCalculo = `(${consumo}/1000)*${comision}*${pctFinal.toFixed(2)}=${comisionCalculada.toFixed(2)} [${tipoAplicado}]`;
+                    
+                    const sn = String(r['Serie/Numero'] || '');
+                    let serie = '', numero = sn;
+                    const match = sn.match(/([A-Z]+)\s*(\d+)/);
+                    if (match) { serie = match[1]; numero = match[2]; }
+                    
+                    processed.push({
+                        'X': 'SigeCom.DTO.TablasMaestras.AgenteComisionDetailsDTO',
+                        'Agente': comercial,
+                        'Tipo Comision': 'Importe € kWh facturado',
+                        'Fecha': '',
+                        'Comisión': parseFloat(comisionCalculada.toFixed(2)),
+                        'Serie': serie,
+                        'Numero': numero,
+                        'Importe Base': consumo,
+                        'Código Contrato': r['Contrato'] || '',
+                        'Fecha Activación': '',
+                        'CUPS': r['CUPS'] || '',
+                        'Identidad': r['Identidad'] || '',
+                        'Fecha Contratación': formatearFecha(r['Fecha Factura']),
+                        'Fecha Desde': formatearFecha(r['Fecha Inicio Suministro']),
+                        'Fecha Hasta': formatearFecha(r['Fecha Fin Suministro']),
+                        'Grupo': grupoOriginal,
+                        'Cliente': r['Cliente'] || '',
+                        'Dirección': r['Dirección'] || '',
+                        'Tarifa Peaje': r['Tarifa Peaje'] || '',
+                        'Tarifa': r['Tarifa'] || '',
+                        'Fórmula Cálculo': formulaCalculo,
+                        '_numComercial': numeroComercial,
+                        '_agente': comercial
+                    });
+                }
+                
+                // Mostrar tarifas no encontradas
+                if (tarifasNoEncontradas.size > 0 || Object.keys(tarifasNuevas).length > 0) {
+                    const missingDiv = document.getElementById('missingTariffs');
+                    const missingList = document.getElementById('missingList');
+                    missingList.innerHTML = '';
+                    
+                    // Tarifas automáticas (negro)
+                    tarifasNoEncontradas.forEach(t => {
+                        const obj = JSON.parse(t);
+                        const li = document.createElement('li');
+                        li.textContent = `${obj.tarifa} → ${obj.comision} [${obj.tipo}]`;
+                        missingList.appendChild(li);
+                    });
+                    
+                    // Tarifas preguntadas (rojo)
+                    for (const [nombre, data] of Object.entries(tarifasNuevas)) {
+                        const li = document.createElement('li');
+                        li.textContent = `${nombre} → ${data.comision} [${data.tipo}] ⚠️ MANUAL`;
+                        li.style.color = 'red';
+                        li.style.fontWeight = 'bold';
+                        missingList.appendChild(li);
+                    }
+                    
+                    missingDiv.style.display = 'block';
+                }
+                
+                processed.sort((a, b) => {
+                    const numComp = (a._numComercial || 0) - (b._numComercial || 0);
+                    if (numComp !== 0) return numComp;
+                    return a._agente.localeCompare(b._agente);
+                });
+                
+                const groups = {};
+                processed.forEach(r => {
+                    const numCom = r._numComercial;
+                    if (!groups[numCom]) groups[numCom] = [];
+                    groups[numCom].push(r);
+                });
+                
+                processedDataByGroup = groups;
+                allProcessedData = { numeroComercialMap, tarifasNoEncontradas };
+                
+                const final = [];
+                const resumen = [];
+                let currentRow = 2;
+                
+                Object.keys(groups).sort((a, b) => parseInt(a) - parseInt(b)).forEach(numCom => {
+                    const rows = groups[numCom];
+                    const startRow = currentRow;
+                    
+                    rows.forEach(r => {
+                        delete r._numComercial;
+                        delete r._agente;
+                        final.push(r);
+                        currentRow++;
+                    });
+                    
+                    const endRow = currentRow - 1;
+                    
+                    const nombresGrupo = numeroComercialMap[numCom] ? numeroComercialMap[numCom].nombres : [];
+                    const nombrePrincipal = nombresGrupo.length > 0 ? nombresGrupo[0] : 'Comercial ' + numCom;
+                    
+                    const sub = rows.reduce((s, r) => s + (parseFloat(r['Comisión']) || 0), 0);
+                    resumen.push({ numeroComercial: numCom, nombre: nombrePrincipal, subtotal: sub });
+                    
+                    final.push({});
+                    currentRow++;
+                    final.push({});
+                    currentRow++;
+                    
+                    final.push({
+                        'X': '',
+                        'Agente': 'SUBTOTAL ' + nombrePrincipal,
+                        'Comisión': { f: `SUM(E${startRow}:E${endRow})` }
+                    });
+                    currentRow++;
+                    
+                    final.push({
+                        'X': '',
+                        'Agente': 'SUBTOTAL CON IVA ' + nombrePrincipal,
+                        'Comisión': { f: `1.21*SUM(E${startRow}:E${endRow})` }
+                    });
+                    currentRow++;
+                    
+                    final.push({});
+                    currentRow++;
+                    final.push({});
+                    currentRow++;
+                });
+                
+                const total = resumen.reduce((s, a) => s + a.subtotal, 0);
+                const totalIVA = total * 1.21;
+                
+                // Crear HOJA SEPARADA para el resumen usando array de arrays
+                const resumenData = [];
+                
+                // Fila 1: Título en columna A
+                resumenData.push(['=== RESUMEN (SIN IVA) ===']);
+                
+                // Fila 2: Vacía
+                resumenData.push([]);
+                
+                // Filas 3+: Datos (A=Nombre, B=Comisión, C=Número)
+                const rowInicioResumen = 3;
+                resumen.sort((a, b) => parseInt(a.numeroComercial) - parseInt(b.numeroComercial));
+                resumen.forEach(i => {
+                    resumenData.push([
+                        i.nombre,                                    // Columna A
+                        parseFloat(i.subtotal.toFixed(2)),          // Columna B (número puro sin €)
+                        i.numeroComercial                            // Columna C
+
+                    ]);
+                });
+                const rowFinResumen = rowInicioResumen + resumen.length - 1;
+                
+                // Líneas vacías
+                resumenData.push([]);
+                resumenData.push([]);
+                
+                // TOTAL GENERAL en columna B
+                const rowTotalGeneral = rowFinResumen + 3;
+                resumenData.push([
+                    'TOTAL GENERAL:',                       // Columna A
+                    { f: `SUM(B${rowInicioResumen}:B${rowFinResumen})` }  // Columna B (fórmula)
+                ]);
+                
+                // TOTAL CON IVA en columna B
+                resumenData.push([
+                    'TOTAL CON IVA:',                       // Columna A
+                    { f: `B${rowTotalGeneral}*1.21` }      // Columna B (fórmula)
+                ]);
+                
+                const newWb = XLSX.utils.book_new();
+                const ws = XLSX.utils.json_to_sheet(final, { cellFormula: true });
+                XLSX.utils.book_append_sheet(newWb, ws, 'Detalle');
+                
+                // Añadir hoja de resumen desde array de arrays
+                const wsResumen = XLSX.utils.aoa_to_sheet(resumenData);
+                
+                // Aplicar formato de moneda € a la columna B
+                const rangeResumen = XLSX.utils.decode_range(wsResumen['!ref']);
+                for (let R = 2; R <= rangeResumen.e.r; R++) { // Desde fila 3 (índice 2)
+                    const cellAddress = XLSX.utils.encode_cell({ r: R, c: 1 }); // Columna B (índice 1)
+                    if (wsResumen[cellAddress] && typeof wsResumen[cellAddress].v === 'number') {
+                        wsResumen[cellAddress].z = '#,##0.00 "€"'; // Formato moneda con €
+                    }
+                }
+                
+                XLSX.utils.book_append_sheet(newWb, wsResumen, 'Resumen');
+                
+                // Hoja de tarifas no encontradas (incluye automáticas y manuales)
+                if (tarifasNoEncontradas.size > 0 || Object.keys(tarifasNuevas).length > 0) {
+                    const tarifasFaltantes = [];
+                    
+                    // Tarifas automáticas (con número extraído)
+                    tarifasNoEncontradas.forEach(t => {
+                        const obj = JSON.parse(t);
+                        tarifasFaltantes.push({
+                            'Tarifa': obj.tarifa,
+                            'Comisión': obj.comision,
+                            'Tipo': obj.tipo,
+                            'Origen': 'Auto',
+                            '_estilo': 'normal'
+                        });
+                    });
+                    
+                    // Tarifas manuales (preguntadas al usuario) - MARCAR EN ROJO
+                    for (const [nombre, data] of Object.entries(tarifasNuevas)) {
+                        tarifasFaltantes.push({
+                            'Tarifa': nombre,
+                            'Comisión': data.comision,
+                            'Tipo': data.tipo,
+                            'Origen': '⚠️ MANUAL',
+                            '_estilo': 'rojo'
+                        });
+                    }
+                    
+                    const wsMissing = XLSX.utils.json_to_sheet(tarifasFaltantes);
+                    
+                    // Aplicar formato rojo a filas manuales
+                    const range = XLSX.utils.decode_range(wsMissing['!ref']);
+                    for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+                        const origenAddr = XLSX.utils.encode_cell({r: R, c: 3});
+                        const origenCell = wsMissing[origenAddr];
+                        
+                        if (origenCell && origenCell.v && origenCell.v.includes('MANUAL')) {
+                            // Colorear toda la fila en rojo
+                            for (let C = range.s.c; C <= range.e.c; ++C) {
+                                const cellAddr = XLSX.utils.encode_cell({r: R, c: C});
+                                if (!wsMissing[cellAddr]) {
+                                    wsMissing[cellAddr] = {t: 's', v: ''};
+                                }
+                                if (!wsMissing[cellAddr].s) {
+                                    wsMissing[cellAddr].s = {};
+                                }
+                                wsMissing[cellAddr].s = {
+                                    fill: {fgColor: {rgb: "FFFF0000"}},
+                                    font: {color: {rgb: "FFFFFFFF"}, bold: true}
+                                };
+                            }
+                        }
+                    }
+                    
+                    XLSX.utils.book_append_sheet(newWb, wsMissing, 'TARIFAS_NO_ENCONTRADAS');
+                }
+                
+                // Hoja de comerciales no encontrados (solo manuales)
+                if (Object.keys(comercialesNuevos).length > 0) {
+                    const comercialesFaltantes = [];
+                    
+                    for (const [nombre, data] of Object.entries(comercialesNuevos)) {
+                        comercialesFaltantes.push({
+                            'Comercial': data.nombreOriginal || nombre,
+                            'Número': data.numeroComercial,
+                            'Porcentaje': data.porcentaje
+                        });
+                    }
+                    
+                    const wsComerciales = XLSX.utils.json_to_sheet(comercialesFaltantes);
+                    
+                    // Colorear TODO en rojo (son todos manuales)
+                    const range = XLSX.utils.decode_range(wsComerciales['!ref']);
+                    for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+                        for (let C = range.s.c; C <= range.e.c; ++C) {
+                            const cellAddr = XLSX.utils.encode_cell({r: R, c: C});
+                            if (!wsComerciales[cellAddr]) {
+                                wsComerciales[cellAddr] = {t: 's', v: ''};
+                            }
+                            if (!wsComerciales[cellAddr].s) {
+                                wsComerciales[cellAddr].s = {};
+                            }
+                            wsComerciales[cellAddr].s = {
+                                fill: {fgColor: {rgb: "FFFF0000"}},
+                                font: {color: {rgb: "FFFFFFFF"}, bold: true}
+                            };
+                        }
+                    }
+                    
+                    XLSX.utils.book_append_sheet(newWb, wsComerciales, 'COMERCIALES_NO_ENCONTRADOS');
+                }
+                
+                processedWorkbook = newWb;
+                
+                document.getElementById('statsContainer').innerHTML = `
+                    <div class="stats">
+                        <div class="stat-card"><h3>${processed.length}</h3><p>Facturas</p></div>
+                        <div class="stat-card"><h3>${Object.keys(groups).length}</h3><p>Comerciales</p></div>
+                        <div class="stat-card"><h3>${tarifasNoEncontradas.size}</h3><p>Extraídas</p></div>
+                        <div class="stat-card"><h3>${total.toFixed(2)}€</h3><p>Total</p></div>
+                    </div>
+                `;
+                
+                document.getElementById('loading').style.display = 'none';
+                showStatus(`✅ ${processed.length} facturas procesadas`, 'success');
+                document.getElementById('downloadSection').style.display = 'block';
+                
+            } catch (error) {
+                document.getElementById('loading').style.display = 'none';
+                showStatus('❌ Error: ' + error.message, 'error');
+                console.error(error);
+            }
         }
+
+        // ========================================
+        // PROCESAMIENTO DE GAS - FASE 1
+        // ========================================
         
-        if (processedGas.length === 0) {
-            showStatus('⚠️ No se procesaron facturas de GAS', 'error');
-            return null;
-        }
-        
-        // Ordenar por comercial
-        processedGas.sort((a, b) => {
-            const numComp = (a._numComercial || 0) - (b._numComercial || 0);
-            if (numComp !== 0) return numComp;
-            return a._agente.localeCompare(b._agente);
-        });
-        
-        // Agrupar por número comercial
-        const groupsGas = {};
-        processedGas.forEach(r => {
-            const numCom = r._numComercial;
-            if (!groupsGas[numCom]) groupsGas[numCom] = [];
-            groupsGas[numCom].push(r);
-        });
-        
-        // Crear Excel con subtotales
-        const finalGas = [];
-        const resumenGas = [];
-        let currentRow = 2;
-        
-        Object.keys(groupsGas).sort((a, b) => parseInt(a) - parseInt(b)).forEach(numCom => {
-            const rows = groupsGas[numCom];
-            const startRow = currentRow;
-            
-            rows.forEach(r => {
-                delete r._numComercial;
-                delete r._agente;
-                finalGas.push(r);
-                currentRow++;
-            });
-            
-            const endRow = currentRow - 1;
-            
-            // Obtener nombre principal
-            const nombrePrincipal = numeroComercialGasMap[numCom]?.nombres[0] || 'Comercial ' + numCom;
-            const subtotal = rows.reduce((sum, r) => sum + (r['Comisión'] || 0), 0);
-            
-            resumenGas.push({
-                numeroComercial: numCom,
-                nombre: nombrePrincipal,
-                subtotal: subtotal
-            });
-            
-            finalGas.push({});
-            currentRow++;
-            finalGas.push({});
-            currentRow++;
-            
-            finalGas.push({
-                'X': '',
-                'Agente': 'SUBTOTAL ' + nombrePrincipal,
-                'Comisión': { f: `SUM(E${startRow}:E${endRow})` }
-            });
-            currentRow++;
-            
-            finalGas.push({
-                'X': '',
-                'Agente': 'SUBTOTAL CON IVA ' + nombrePrincipal,
-                'Comisión': { f: `1.21*SUM(E${startRow}:E${endRow})` }
-            });
-            currentRow++;
-            
-            finalGas.push({});
-            currentRow++;
-            finalGas.push({});
-            currentRow++;
-        });
-        
-        const totalGas = resumenGas.reduce((s, a) => s + a.subtotal, 0);
-        const totalIVAGas = totalGas * 1.21;
-        
-        // Crear HOJA SEPARADA para el resumen de GAS
-        const resumenGasData = [];
-        resumenGasData.push(['=== RESUMEN GAS (SIN IVA) ===']);
-        resumenGasData.push([]);
-        
-        const rowInicioResumenGas = 3;
-        resumenGas.sort((a, b) => parseInt(a.numeroComercial) - parseInt(b.numeroComercial));
-        resumenGas.forEach(i => {
-            resumenGasData.push([
-                i.nombre,
-                parseFloat(i.subtotal.toFixed(2)),
-                i.numeroComercial
-            ]);
-        });
-        const rowFinResumenGas = rowInicioResumenGas + resumenGas.length - 1;
-        
-        resumenGasData.push([]);
-        resumenGasData.push([]);
-        
-        const rowTotalGeneralGas = rowFinResumenGas + 3;
-        resumenGasData.push([
-            'TOTAL GENERAL:',
-            { f: `SUM(B${rowInicioResumenGas}:B${rowFinResumenGas})` }
-        ]);
-        
-        resumenGasData.push([
-            'TOTAL CON IVA:',
-            { f: `B${rowTotalGeneralGas}*1.21` }
-        ]);
-        
-        // Crear workbook de GAS
-        const newWbGas = XLSX.utils.book_new();
-        const wsGas = XLSX.utils.json_to_sheet(finalGas, { cellFormula: true });
-        XLSX.utils.book_append_sheet(newWbGas, wsGas, 'Detalle GAS');
-        
-        // Añadir hoja de resumen
-        const wsResumenGas = XLSX.utils.aoa_to_sheet(resumenGasData);
-        
-        // Aplicar formato de moneda
-        const rangeResumenGas = XLSX.utils.decode_range(wsResumenGas['!ref']);
-        for (let R = 2; R <= rangeResumenGas.e.r; R++) {
-            const cellAddress = XLSX.utils.encode_cell({ r: R, c: 1 });
-            if (wsResumenGas[cellAddress] && typeof wsResumenGas[cellAddress].v === 'number') {
-                wsResumenGas[cellAddress].z = '#,##0.00 "€"';
+        async function processGas(wb) {
+            try {
+                const sheetNames = wb.SheetNames;
+                const datosGasSheet = wb.Sheets['DATOSGAS'] || wb.Sheets['DatosGas'] || wb.Sheets['datosgas'];
+                const comercialesGasSheet = wb.Sheets['COMERCIALESGAS'] || wb.Sheets['ComercialesGas'] || wb.Sheets['comercialesgas'];
+                const facturasGasSheet = wb.Sheets[sheetNames.find(n => n.toUpperCase().includes('FACTURASGAS') || n.toUpperCase().includes('FACTURAS GAS'))];
+                
+                if (!facturasGasSheet) {
+                    console.log('No se encontró hoja de facturas de GAS');
+                    return null;
+                }
+                
+                // Procesar DATOSGAS
+                const tarifasGasMap = {};
+                if (datosGasSheet) {
+                    const datosGasRaw = XLSX.utils.sheet_to_json(datosGasSheet, { header: 1 });
+                    
+                    for (let i = 1; i < datosGasRaw.length; i++) {
+                        const row = datosGasRaw[i];
+                        if (!row[0]) continue;
+                        
+                        const tarifa = String(row[0]).toUpperCase().trim();
+                        tarifasGasMap[tarifa] = {
+                            'RL.1': parseFloat(row[1]) || 0,
+                            'RL. 1': parseFloat(row[1]) || 0,
+                            'RL1': parseFloat(row[1]) || 0,
+                            'RL.2': parseFloat(row[2]) || 0,
+                            'RL. 2': parseFloat(row[2]) || 0,
+                            'RL2': parseFloat(row[2]) || 0,
+                            'RL.3': parseFloat(row[3]) || 0,
+                            'RL. 3': parseFloat(row[3]) || 0,
+                            'RL3': parseFloat(row[3]) || 0,
+                            'RL.4': parseFloat(row[4]) || 0,
+                            'RL. 4': parseFloat(row[4]) || 0,
+                            'RL4': parseFloat(row[4]) || 0,
+                            'RL.5': parseFloat(row[5]) || 0,
+                            'RL. 5': parseFloat(row[5]) || 0,
+                            'RL5': parseFloat(row[5]) || 0
+                        };
+                    }
+                }
+                
+                // Procesar COMERCIALESGAS
+                const comercialesGasMap = {};
+                const numeroComercialGasMap = {};
+                
+                if (comercialesGasSheet) {
+                    const comercialesGasRaw = XLSX.utils.sheet_to_json(comercialesGasSheet, { header: 1 });
+                    
+                    for (let i = 1; i < comercialesGasRaw.length; i++) {
+                        const row = comercialesGasRaw[i];
+                        if (!row[0]) continue;
+                        
+                        const agente = String(row[0]).toUpperCase().trim();
+                        const numeroComercial = row[1];
+                        const porcentaje = parseFloat(row[2]) || 0;
+                        
+                        let numero;
+                        if (typeof numeroComercial === 'number') {
+                            numero = String(Math.floor(numeroComercial)).padStart(2, '0');
+                        } else {
+                            const nums = String(numeroComercial).match(/\d+/);
+                            numero = nums ? String(parseInt(nums[0])).padStart(2, '0') : '00';
+                        }
+                        
+                        comercialesGasMap[agente] = {
+                            numeroComercial: numero,
+                            porcentaje: porcentaje,
+                            nombreOriginal: row[0]
+                        };
+                        
+                        if (!numeroComercialGasMap[numero]) {
+                            numeroComercialGasMap[numero] = { nombres: [], porcentaje: porcentaje };
+                        }
+                        numeroComercialGasMap[numero].nombres.push(row[0]);
+                    }
+                }
+                
+                // Procesar FACTURASGAS
+                const facturaGasData = XLSX.utils.sheet_to_json(facturasGasSheet);
+                const processedGas = [];
+                const tarifasGasNoEncontradas = new Set();
+                
+                tarifasGasNuevas = {};
+                comercialesGasNuevos = {};
+                
+                const formatearFecha = (fecha) => {
+                    if (!fecha) return '';
+                    if (fecha instanceof Date) {
+                        return fecha.toLocaleDateString('es-ES');
+                    }
+                    return String(fecha);
+                };
+                
+                for (const r of facturaGasData) {
+                    const comercial = r['Comercial'] || r['Identidad'] || '';
+                    const grupoOriginal = r['Grupo'] || '';
+                    const tarifaPeaje = r['Tarifa Peaje'] || r['TarifaPeaje'] || '';
+                    const consumo = parseFloat(r['Consumo'] || 0);
+                    
+                    if (!grupoOriginal || !consumo || !tarifaPeaje) continue;
+                    
+                    const grupo = String(grupoOriginal).toUpperCase().trim();
+                    const peaje = String(tarifaPeaje).toUpperCase().trim();
+                    
+                    let comisionBase = 0;
+                    let tarifaData = tarifasGasMap[grupo];
+                    
+                    if (tarifaData) {
+                        comisionBase = tarifaData[peaje] || 0;
+                    } else {
+                        tarifasGasNoEncontradas.add(JSON.stringify({ 
+                            tarifa: grupoOriginal, 
+                            peaje: peaje 
+                        }));
+                        continue;
+                    }
+                    
+                    const comercialU = String(comercial).toUpperCase().trim();
+                    let comercialInfo = comercialesGasMap[comercialU];
+                    
+                    if (!comercialInfo) {
+                        for (let k in comercialesGasMap) {
+                            if (comercialU.includes(k) || k.includes(comercialU)) {
+                                comercialInfo = comercialesGasMap[k];
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (!comercialInfo) continue;
+                    
+                    const numeroComercial = comercialInfo.numeroComercial;
+                    const pctComercial = comercialInfo.porcentaje;
+                    
+                    const consumoMWh = consumo / 1000;
+                    const comisionCalculada = consumoMWh * comisionBase * pctComercial;
+                    const formulaCalculo = `(${consumo}/1000)*${comisionBase}*${pctComercial.toFixed(2)}=${comisionCalculada.toFixed(2)} [GAS]`;
+                    
+                    const serieNumero = r['Serie/Numero'] || r['Serie'] || '';
+                    let serie = '', numero = '';
+                    const match = String(serieNumero).match(/^([A-Z]+)(\d+)$/i);
+                    if (match) { 
+                        serie = match[1]; 
+                        numero = match[2]; 
+                    }
+                    
+                    processedGas.push({
+                        'X': 'SigeCom.DTO.TablasMaestras.AgenteComisionDetailsDTO',
+                        'Agente': 'GAS-' + comercial,
+                        'Tipo Comision': 'Importe € kWh facturado',
+                        'Fecha': '',
+                        'Comisión': parseFloat(comisionCalculada.toFixed(2)),
+                        'Serie': serie,
+                        'Numero': numero,
+                        'Importe Base': consumo,
+                        'Código Contrato': r['Contrato'] || '',
+                        'Fecha Activación': '',
+                        'CUPS': r['CUPS'] || '',
+                        'Identidad': r['Identidad'] || '',
+                        'Fecha Contratación': formatearFecha(r['Fecha Factura']),
+                        'Fecha Desde': formatearFecha(r['Fecha Inicio Suministro']),
+                        'Fecha Hasta': formatearFecha(r['Fecha Fin Suministro']),
+                        'Grupo': grupoOriginal,
+                        'Cliente': r['Cliente'] || '',
+                        'Dirección': r['Dirección'] || '',
+                        'Tarifa Peaje': tarifaPeaje,
+                        'Tarifa': r['Tarifa'] || '',
+                        'Fórmula Cálculo': formulaCalculo,
+                        '_numComercial': numeroComercial,
+                        '_agente': comercial
+                    });
+                }
+                
+                if (processedGas.length === 0) {
+                    showStatus('⚠️ No se procesaron facturas de GAS', 'error');
+                    return null;
+                }
+                
+                processedGas.sort((a, b) => {
+                    const numComp = (a._numComercial || 0) - (b._numComercial || 0);
+                    if (numComp !== 0) return numComp;
+                    return a._agente.localeCompare(b._agente);
+                });
+                
+                const groupsGas = {};
+                processedGas.forEach(r => {
+                    const numCom = r._numComercial;
+                    if (!groupsGas[numCom]) groupsGas[numCom] = [];
+                    groupsGas[numCom].push(r);
+                });
+                
+                const finalGas = [];
+                const resumenGas = [];
+                let currentRow = 2;
+                
+                Object.keys(groupsGas).sort((a, b) => parseInt(a) - parseInt(b)).forEach(numCom => {
+                    const rows = groupsGas[numCom];
+                    const startRow = currentRow;
+                    
+                    rows.forEach(r => {
+                        delete r._numComercial;
+                        delete r._agente;
+                        finalGas.push(r);
+                        currentRow++;
+                    });
+                    
+                    const endRow = currentRow - 1;
+                    const nombrePrincipal = numeroComercialGasMap[numCom]?.nombres[0] || 'Comercial ' + numCom;
+                    const subtotal = rows.reduce((sum, r) => sum + (r['Comisión'] || 0), 0);
+                    
+                    resumenGas.push({
+                        numeroComercial: numCom,
+                        nombre: nombrePrincipal,
+                        subtotal: subtotal
+                    });
+                    
+                    finalGas.push({});
+                    currentRow++;
+                    finalGas.push({});
+                    currentRow++;
+                    
+                    finalGas.push({
+                        'X': '',
+                        'Agente': 'SUBTOTAL ' + nombrePrincipal,
+                        'Comisión': { f: `SUM(E${startRow}:E${endRow})` }
+                    });
+                    currentRow++;
+                    
+                    finalGas.push({
+                        'X': '',
+                        'Agente': 'SUBTOTAL CON IVA ' + nombrePrincipal,
+                        'Comisión': { f: `1.21*SUM(E${startRow}:E${endRow})` }
+                    });
+                    currentRow++;
+                    
+                    finalGas.push({});
+                    currentRow++;
+                    finalGas.push({});
+                    currentRow++;
+                });
+                
+                const resumenGasData = [];
+                resumenGasData.push(['=== RESUMEN GAS (SIN IVA) ===']);
+                resumenGasData.push([]);
+                
+                const rowInicioResumenGas = 3;
+                resumenGas.sort((a, b) => parseInt(a.numeroComercial) - parseInt(b.numeroComercial));
+                resumenGas.forEach(i => {
+                    resumenGasData.push([
+                        i.nombre,
+                        parseFloat(i.subtotal.toFixed(2)),
+                        i.numeroComercial
+                    ]);
+                });
+                const rowFinResumenGas = rowInicioResumenGas + resumenGas.length - 1;
+                
+                resumenGasData.push([]);
+                resumenGasData.push([]);
+                
+                const rowTotalGeneralGas = rowFinResumenGas + 3;
+                resumenGasData.push([
+                    'TOTAL GENERAL:',
+                    { f: `SUM(B${rowInicioResumenGas}:B${rowFinResumenGas})` }
+                ]);
+                
+                resumenGasData.push([
+                    'TOTAL CON IVA:',
+                    { f: `B${rowTotalGeneralGas}*1.21` }
+                ]);
+                
+                const newWbGas = XLSX.utils.book_new();
+                const wsGas = XLSX.utils.json_to_sheet(finalGas, { cellFormula: true });
+                XLSX.utils.book_append_sheet(newWbGas, wsGas, 'Detalle GAS');
+                
+                const wsResumenGas = XLSX.utils.aoa_to_sheet(resumenGasData);
+                const rangeResumenGas = XLSX.utils.decode_range(wsResumenGas['!ref']);
+                for (let R = 2; R <= rangeResumenGas.e.r; R++) {
+                    const cellAddress = XLSX.utils.encode_cell({ r: R, c: 1 });
+                    if (wsResumenGas[cellAddress] && typeof wsResumenGas[cellAddress].v === 'number') {
+                        wsResumenGas[cellAddress].z = '#,##0.00 "€"';
+                    }
+                }
+                XLSX.utils.book_append_sheet(newWbGas, wsResumenGas, 'Resumen GAS');
+                
+                if (tarifasGasNoEncontradas.size > 0) {
+                    const tarifasFaltantes = Array.from(tarifasGasNoEncontradas).map(t => {
+                        const obj = JSON.parse(t);
+                        return { 
+                            'Tarifa': obj.tarifa, 
+                            'Peaje': obj.peaje,
+                            'Estado': 'Pendiente'
+                        };
+                    });
+                    const wsMissing = XLSX.utils.json_to_sheet(tarifasFaltantes);
+                    XLSX.utils.book_append_sheet(newWbGas, wsMissing, 'TARIFAS_GAS_NO_ENCONTRADAS');
+                }
+                
+                processedWorkbookGas = newWbGas;
+                processedDataByGroupGas = groupsGas;
+                allProcessedDataGas = { numeroComercialGasMap, tarifasGasNoEncontradas };
+                
+                showStatus('✅ GAS procesado: ' + processedGas.length + ' facturas', 'success');
+                document.getElementById('downloadSectionGas').style.display = 'block';
+                
+                return newWbGas;
+                
+            } catch (error) {
+                document.getElementById('loading').style.display = 'none';
+                showStatus('❌ Error procesando GAS: ' + error.message, 'error');
+                console.error(error);
+                return null;
             }
         }
         
-        XLSX.utils.book_append_sheet(newWbGas, wsResumenGas, 'Resumen GAS');
-        
-        // Hoja de tarifas no encontradas (si hay)
-        if (tarifasGasNoEncontradas.size > 0) {
-            const tarifasFaltantes = Array.from(tarifasGasNoEncontradas).map(t => {
-                const obj = JSON.parse(t);
-                return { 
-                    'Tarifa': obj.tarifa, 
-                    'Peaje': obj.peaje,
-                    'Estado': 'Pendiente'
-                };
-            });
-            const wsMissing = XLSX.utils.json_to_sheet(tarifasFaltantes);
-            XLSX.utils.book_append_sheet(newWbGas, wsMissing, 'TARIFAS_GAS_NO_ENCONTRADAS');
+        function downloadFile() {
+            if (!processedWorkbook) return;
+            XLSX.writeFile(processedWorkbook, 'Comisiones_Completo_' + new Date().toISOString().split('T')[0] + '.xlsx');
+            showStatus('✅ Excel completo descargado', 'success');
         }
         
-        processedWorkbookGas = newWbGas;
-        processedDataByGroupGas = groupsGas;
-        allProcessedDataGas = { numeroComercialGasMap, tarifasGasNoEncontradas };
+        async function downloadByComercial() {
+            if (!processedDataByGroup) {
+                showStatus('❌ No hay datos procesados', 'error');
+                return;
+            }
+            
+            try {
+                showStatus('⏳ Generando archivos por comercial...', 'success');
+                
+                const zip = new JSZip();
+                const { numeroComercialMap } = allProcessedData;
+                
+                Object.keys(processedDataByGroup).sort((a, b) => parseInt(a) - parseInt(b)).forEach(numCom => {
+                    const rows = processedDataByGroup[numCom];
+                    const nombresGrupo = numeroComercialMap[numCom] ? numeroComercialMap[numCom].nombres : [];
+                    const nombrePrincipal = nombresGrupo.length > 0 ? nombresGrupo[0] : 'Comercial_' + numCom;
+                    
+                    const comercialData = [];
+                    let currentRow = 2;
+                    const startRow = currentRow;
+                    
+                    rows.forEach(r => {
+                        const cleanRow = { ...r };
+                        delete cleanRow._numComercial;
+                        delete cleanRow._agente;
+                        delete cleanRow['Fórmula Cálculo']; // Ocultar fórmula al comercial
+                        comercialData.push(cleanRow);
+                        currentRow++;
+                    });
+                    
+                    const endRow = currentRow - 1;
+                    
+                    comercialData.push({});
+                    currentRow++;
+                    comercialData.push({});
+                    currentRow++;
+                    
+                    comercialData.push({
+                        'X': '',
+                        'Agente': 'SUBTOTAL ' + nombrePrincipal,
+                        'Comisión': { f: `SUM(E${startRow}:E${endRow})` }
+                    });
+                    currentRow++;
+                    
+                    comercialData.push({
+                        'X': '',
+                        'Agente': 'SUBTOTAL CON IVA ' + nombrePrincipal,
+                        'Comisión': { f: `1.21*SUM(E${startRow}:E${endRow})` }
+                    });
+                    
+                    const wb = XLSX.utils.book_new();
+                    const nombreHojaLimpio = limpiarNombre(nombrePrincipal);
+                    const ws = XLSX.utils.json_to_sheet(comercialData, { cellFormula: true });
+                    XLSX.utils.book_append_sheet(wb, ws, nombreHojaLimpio);
+                    
+                    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                    const nombreArchivoLimpio = `${String(numCom).padStart(2, '0')}_${nombrePrincipal.replace(/[^a-zA-Z0-9-]/g, '_')}`;
+                    const fileName = `${nombreArchivoLimpio}.xlsx`;
+                    
+                    zip.file(fileName, wbout);
+                });
+                
+                showStatus('⏳ Comprimiendo ZIP...', 'success');
+                const content = await zip.generateAsync({ type: 'blob' });
+                
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(content);
+                link.download = 'Comisiones_Por_Comercial_' + new Date().toISOString().split('T')[0] + '.zip';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                showStatus('✅ ZIP descargado correctamente', 'success');
+                
+            } catch (error) {
+                console.error('Error:', error);
+                showStatus('❌ Error: ' + error.message, 'error');
+            }
+        }
         
-        showStatus('✅ GAS procesado: ' + processedGas.length + ' facturas', 'success');
-        
-        document.getElementById('downloadSectionGas').style.display = 'block';
-        
-        return newWbGas;
-        
-    } catch (error) {
-        document.getElementById('loading').style.display = 'none';
-        showStatus('❌ Error procesando GAS: ' + error.message, 'error');
-        console.error(error);
-        return null;
-    }
-}
-```
+        function downloadScript() {
+            const scriptContent = `-- SCRIPT AUTOMÁTICO DE LIQUIDACIONES CON OUTLOOK
+-- Este script busca automáticamente el ZIP y Excel en Descargas
+-- y crea emails en Outlook con archivos adjuntos
 
-## SIGUIENTE: Modificar handleFile para llamar a processGas
+-- CONFIGURACIÓN
+set nombreRemitente to "Fernando"
+set carpetaDescargas to (path to downloads folder as text)
 
-En la función `handleFile`, después de llamar a `processExcel`, añadir:
-
-```javascript
-reader.onload = async (e) => {
-    try {
-        const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
-        await processExcel(wb);  // Electricidad
-        await processGas(wb);    // GAS (nuevo)
-    } catch (error) {
-        //...
-    }
-};
-```
-
-## SIGUIENTE: Añadir botón de descarga para GAS
-
-En el HTML, después del `downloadSection` de electricidad, añadir:
-
-```html
-<div id="downloadSectionGas" style="display: none; margin-top: 20px;">
-    <h3>📦 GAS - Descargar Excel Completo</h3>
-    <button onclick="downloadExcelGas()" class="download-btn">
-        📊 Descargar Excel GAS
-    </button>
-</div>
-```
-
-## SIGUIENTE: Función downloadExcelGas
-
-```javascript
-function downloadExcelGas() {
-    if (!processedWorkbookGas) {
-        showStatus('⚠️ No hay datos de GAS procesados', 'error');
-        return;
-    }
+try
+    set rutaDescargas to POSIX path of carpetaDescargas
     
-    const timestamp = new Date().toISOString().split('T')[0];
-    const wbout = XLSX.write(processedWorkbookGas, { bookType: 'xlsx', type: 'array', cellFormula: true });
-    const blob = new Blob([wbout], { type: 'application/octet-stream' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `Liquidaciones_GAS_${timestamp}.xlsx`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    -- Buscar ZIP más reciente
+    set comandoBuscarZIP to "find " & quoted form of rutaDescargas & " -name 'Comisiones_Por_Comercial_*.zip' -type f -mtime -1 | head -1"
+    set archivoZIP to do shell script comandoBuscarZIP
     
-    showStatus('✅ Excel GAS descargado', 'success');
-}
-```
+    if archivoZIP is "" then
+        display dialog "❌ No se encontró el archivo ZIP de comisiones en Descargas.
 
----
+Por favor:
+1. Descarga el ZIP desde la calculadora web
+2. Ejecuta este script de nuevo" buttons {"OK"} default button 1 with icon stop
+        return
+    end if
+    
+    -- Buscar Excel original más reciente
+    set comandoBuscarExcel to "find " & quoted form of rutaDescargas & " -maxdepth 1 -name '*comision*.xlsx' -o -name '*COMISION*.xlsx' -type f -mtime -1 | head -1"
+    set archivoExcelOriginal to do shell script comandoBuscarExcel
+    
+    if archivoExcelOriginal is "" then
+        display dialog "❌ No se encontró el archivo de comisiones en Descargas.
 
-**¿PROCEDO A IMPLEMENTAR TODO ESTO EN EL HTML?**
+Debe llamarse: comisiones.xlsx (o similar)
+Y tener una hoja llamada: COMISIONES
 
-Escribe "SÍ FASE 1" para que aplique todos estos cambios.
+Con las columnas:
+- Columna B: Número comercial
+- Columna D: Nombre
+- Columnas E-H: Emails" buttons {"OK"} default button 1 with icon stop
+        return
+    end if
+    
+    -- Mostrar confirmación
+    set nombreZIP to do shell script "basename " & quoted form of archivoZIP
+    set nombreExcel to do shell script "basename " & quoted form of archivoExcelOriginal
+    
+    display dialog "📋 Archivos encontrados:
+
+ZIP: " & nombreZIP & "
+Excel: " & nombreExcel & "
+
+¿Proceder con el envío de emails?" buttons {"Cancelar", "Continuar"} default button 2
+    
+    if button returned of result is "Cancelar" then
+        return
+    end if
+    
+on error errorMessage
+    display dialog "❌ Error: " & errorMessage buttons {"OK"} default button 1 with icon stop
+    return
+end try
+
+-- Descomprimir ZIP
+set carpetaTemporal to (do shell script "mktemp -d") & "/"
+do shell script "unzip -q " & quoted form of archivoZIP & " -d " & quoted form of carpetaTemporal
+
+-- Obtener archivos Excel descomprimidos (buscar recursivamente y excluir temporales)
+set archivosExcel to paragraphs of (do shell script "find " & quoted form of carpetaTemporal & " -name '*.xlsx' -type f | grep -v '~$'")
+
+if (count of archivosExcel) is 0 then
+    display dialog "❌ No se encontraron archivos Excel en el ZIP" buttons {"OK"} default button 1 with icon stop
+    do shell script "rm -rf " & quoted form of carpetaTemporal
+    return
+end if
+
+-- Leer datos de emails usando Python
+set scriptPython to "
+import sys
+import subprocess
+
+# Intentar importar openpyxl, si falla, instalarlo automáticamente
+try:
+    import openpyxl
+except ImportError:
+    print('Instalando openpyxl...')
+    subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--user', 'openpyxl'])
+    import openpyxl
+
+import json
+
+try:
+    wb = openpyxl.load_workbook('" & archivoExcelOriginal & "', data_only=True)
+    
+    # Buscar hoja COMISIONES con variaciones
+    hoja_comisiones = None
+    for nombre_hoja in wb.sheetnames:
+        if 'COMISION' in nombre_hoja.upper():
+            hoja_comisiones = nombre_hoja
+            break
+    
+    # Si no encuentra COMISIONES, usar la primera hoja disponible
+    if not hoja_comisiones:
+        if len(wb.sheetnames) > 0:
+            hoja_comisiones = wb.sheetnames[0]
+            print(f'AVISO: Usando hoja {hoja_comisiones} (no se encontró hoja COMISIONES)')
+        else:
+            print('ERROR: El Excel no tiene hojas')
+            sys.exit(1)
+    
+    ws = wb[hoja_comisiones]
+    datos = {}
+    
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if not row or len(row) < 2:
+            continue
+            
+        # Columna B (Número comercial) - puede ser texto o número
+        num_comercial = row[1] if len(row) > 1 else None
+        if not num_comercial:
+            continue
+            
+        # Convertir a string y extraer solo números si es necesario
+        try:
+            if isinstance(num_comercial, (int, float)):
+                numero = str(int(num_comercial)).zfill(2)
+            else:
+                # Extraer números del texto (ej: 'A00003' -> '03')
+                import re
+                nums = re.findall(r'\\\\d+', str(num_comercial))
+                if nums:
+                    numero = str(int(nums[0])).zfill(2)
+                else:
+                    continue
+        except:
+            continue
+        
+        # Columna D (Nombre)
+        nombre = str(row[3]) if len(row) > 3 and row[3] else str(row[0])
+        
+        # Columnas E, F, G, H (Emails)
+        emails = []
+        for col_idx in range(4, min(8, len(row))):
+            if row[col_idx] and '@' in str(row[col_idx]):
+                emails.append(str(row[col_idx]).strip())
+        
+        # Solo agregar si tiene al menos un email
+        if emails:
+            datos[numero] = {
+                'nombre': nombre,
+                'emails': emails
+            }
+    
+    print(json.dumps(datos, ensure_ascii=False))
+except Exception as e:
+    print(f'ERROR: {str(e)}')
+    sys.exit(1)
+"
+
+set datosJSON to do shell script "python3 -c " & quoted form of scriptPython
+
+if datosJSON starts with "ERROR:" then
+    display dialog "❌ " & datosJSON buttons {"OK"} default button 1 with icon stop
+    do shell script "rm -rf " & quoted form of carpetaTemporal
+    return
+end if
+
+-- Obtener mes actual
+set scriptMes to "
+import datetime
+meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+print(meses[datetime.datetime.now().month - 1])
+"
+set mesActual to do shell script "python3 -c " & quoted form of scriptMes
+
+-- Crear emails en Outlook
+tell application "Microsoft Outlook"
+    activate
+    
+    set scriptParsear to "
+import json
+datos = json.loads('''" & datosJSON & "''')
+for numero, info in sorted(datos.items()):
+    nombre = info['nombre']
+    emails = ';'.join(info['emails'])
+    print(f'{numero}|{nombre}|{emails}')
+"
+    
+    set lineasDatos to paragraphs of (do shell script "python3 -c " & quoted form of scriptParsear)
+    set contadorEmails to 0
+    set comercialesSinArchivo to {}
+    
+    repeat with lineaDato in lineasDatos
+        set AppleScript's text item delimiters to "|"
+        set datosParte to text items of lineaDato
+        set numeroComercial to item 1 of datosParte
+        set nombreComercial to item 2 of datosParte
+        set emailsDestino to item 3 of datosParte
+        set AppleScript's text item delimiters to ""
+        
+        -- Buscar archivo Excel correspondiente (match exacto al inicio)
+        set archivoEncontrado to missing value
+        
+        -- Convertir lista a string separado por saltos de línea para grep
+        set listaPaths to ""
+        repeat with archivoPath in archivosExcel
+            set listaPaths to listaPaths & archivoPath & "
+"
+        end repeat
+        
+        try
+            -- Usar grep para encontrar archivo que EMPIECE con "numero_"
+            -- El patrón /numero_ busca "/61_" al inicio del nombre de archivo
+            set archivoEncontrado to do shell script "echo " & quoted form of listaPaths & " | grep '/" & numeroComercial & "_' | head -1"
+            -- Si grep no encuentra nada, devolverá vacío y lanzará error
+        on error
+            set archivoEncontrado to missing value
+        end try
+        
+        if archivoEncontrado is not missing value then
+            -- Crear email
+            set nuevoEmail to make new outgoing message with properties {subject:"Liquidaciones " & mesActual & " - " & nombreComercial}
+            
+            -- Añadir destinatarios
+            set AppleScript's text item delimiters to ";"
+            set listaEmails to text items of emailsDestino
+            set AppleScript's text item delimiters to ""
+            
+            repeat with unEmail in listaEmails
+                make new recipient at nuevoEmail with properties {email address:{address:unEmail}}
+            end repeat
+            
+            -- Crear cuerpo
+            -- Crear cuerpo HTML para que respete los saltos de línea
+            set contenidoHTML to "<html><body style='font-family: Arial, sans-serif; font-size: 11pt;'>"
+            set contenidoHTML to contenidoHTML & "<p>Buenos días " & nombreComercial & ",</p>"
+            set contenidoHTML to contenidoHTML & "<p>&nbsp;</p>"
+            set contenidoHTML to contenidoHTML & "<p>Te envío las liquidaciones del mes de " & mesActual & ".</p>"
+            set contenidoHTML to contenidoHTML & "</body></html>"
+            
+            set content of nuevoEmail to contenidoHTML
+            
+            -- Adjuntar archivo
+            tell nuevoEmail
+                make new attachment with properties {file:POSIX file archivoEncontrado}
+            end tell
+            
+            -- Abrir email
+            open nuevoEmail
+            
+            set contadorEmails to contadorEmails + 1
+            delay 1
+        else
+            set end of comercialesSinArchivo to nombreComercial
+        end if
+    end repeat
+end tell
+
+-- Limpiar y mostrar resultado
+do shell script "rm -rf " & quoted form of carpetaTemporal
+
+set mensaje to "✅ Proceso completado
+
+Emails creados: " & contadorEmails
+
+if (count of comercialesSinArchivo) > 0 then
+    set mensaje to mensaje & "
+
+⚠️ Comerciales sin archivo Excel:
+"
+    repeat with comercial in comercialesSinArchivo
+        set mensaje to mensaje & "- " & comercial & "
+"
+    end repeat
+end if
+
+set mensaje to mensaje & "
+
+Los emails están abiertos en Outlook.
+Revisa y envía cada uno."
+
+display dialog mensaje buttons {"OK"} default button 1`;
+            
+            const blob = new Blob([scriptContent], { type: 'text/plain;charset=utf-8' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'Enviar_Liquidaciones_Outlook.scpt';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showStatus('✅ Script descargado correctamente', 'success');
+            alert('📥 Script descargado: Enviar_Liquidaciones_Outlook.scpt\n\n✅ PASOS:\n\n1. Descarga primero el ZIP (botón rosa)\n2. Haz doble clic en el archivo .scpt descargado\n3. El script buscará automáticamente los archivos\n4. Outlook abrirá con todos los emails\n\n⚠️ REQUISITO (solo primera vez):\npip3 install openpyxl');
+        }
+    </script>
+</body>
+</html>
