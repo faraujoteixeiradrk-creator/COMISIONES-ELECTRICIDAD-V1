@@ -840,6 +840,7 @@
                 const tarifasGasMap = {};
                 if (datosGasSheet) {
                     const datosGasRaw = XLSX.utils.sheet_to_json(datosGasSheet, { header: 1 });
+                    console.log('📊 DATOSGAS filas:', datosGasRaw.length);
                     
                     for (let i = 1; i < datosGasRaw.length; i++) {
                         const row = datosGasRaw[i];
@@ -864,6 +865,8 @@
                             'RL5': parseFloat(row[5]) || 0
                         };
                     }
+                    console.log('✓ Tarifas GAS cargadas:', Object.keys(tarifasGasMap).length);
+                    console.log('📋 Tarifas:', Object.keys(tarifasGasMap));
                 }
                 
                 // Procesar COMERCIALESGAS
@@ -904,6 +907,8 @@
                 
                 // Procesar FACTURASGAS
                 const facturaGasData = XLSX.utils.sheet_to_json(facturasGasSheet);
+                console.log('📋 FACTURASGAS filas:', facturaGasData.length);
+                
                 const processedGas = [];
                 const tarifasGasNoEncontradas = new Set();
                 
@@ -998,7 +1003,11 @@
                     });
                 }
                 
+                console.log('✅ Facturas GAS procesadas:', processedGas.length);
+                console.log('⚠️ Tarifas no encontradas:', tarifasGasNoEncontradas.size);
+                
                 if (processedGas.length === 0) {
+                    console.log('❌ No se procesó ninguna factura de GAS');
                     showStatus('⚠️ No se procesaron facturas de GAS', 'error');
                     return null;
                 }
