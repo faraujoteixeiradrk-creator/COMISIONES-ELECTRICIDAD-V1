@@ -940,11 +940,14 @@
                     if (tarifaData) {
                         comisionBase = tarifaData[peaje] || 0;
                     } else {
+                        // Tarifa no encontrada - marcar pero CONTINUAR procesando
                         tarifasGasNoEncontradas.add(JSON.stringify({ 
                             tarifa: grupoOriginal, 
                             peaje: peaje 
                         }));
-                        continue;
+                        // FASE 1: Usar comisión 0 para generar Excel
+                        // FASE 4: Aquí preguntaremos al usuario
+                        comisionBase = 0;
                     }
                     
                     const comercialU = String(comercial).toUpperCase().trim();
@@ -959,7 +962,15 @@
                         }
                     }
                     
-                    if (!comercialInfo) continue;
+                    // FASE 1: Si no encuentra comercial, usar valores por defecto
+                    // FASE 4: Aquí preguntaremos al usuario
+                    if (!comercialInfo) {
+                        comercialInfo = {
+                            numeroComercial: '00',
+                            porcentaje: 0,
+                            nombreOriginal: comercial
+                        };
+                    }
                     
                     const numeroComercial = comercialInfo.numeroComercial;
                     const pctComercial = comercialInfo.porcentaje;
