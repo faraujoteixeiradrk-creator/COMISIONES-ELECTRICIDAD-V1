@@ -633,9 +633,10 @@
                 resumen.sort((a, b) => parseInt(a.numeroComercial) - parseInt(b.numeroComercial));
                 resumen.forEach(i => {
                     resumenData.push([
-                        i.nombre,                           // Columna A
-                        i.subtotal.toFixed(2) + ' €',      // Columna B
-                        i.numeroComercial                   // Columna C
+                        i.nombre,                                    // Columna A
+                        parseFloat(i.subtotal.toFixed(2)),          // Columna B (número puro sin €)
+                        i.numeroComercial                            // Columna C
+
                     ]);
                 });
                 const rowFinResumen = rowInicioResumen + resumen.length - 1;
@@ -663,6 +664,16 @@
                 
                 // Añadir hoja de resumen desde array de arrays
                 const wsResumen = XLSX.utils.aoa_to_sheet(resumenData);
+                
+                // Aplicar formato de moneda € a la columna B
+                const rangeResumen = XLSX.utils.decode_range(wsResumen['!ref']);
+                for (let R = 2; R <= rangeResumen.e.r; R++) { // Desde fila 3 (índice 2)
+                    const cellAddress = XLSX.utils.encode_cell({ r: R, c: 1 }); // Columna B (índice 1)
+                    if (wsResumen[cellAddress] && typeof wsResumen[cellAddress].v === 'number') {
+                        wsResumen[cellAddress].z = '#,##0.00 "€"'; // Formato moneda con €
+                    }
+                }
+                
                 XLSX.utils.book_append_sheet(newWb, wsResumen, 'Resumen');
                 
                 // Hoja de tarifas no encontradas (incluye automáticas y manuales)
