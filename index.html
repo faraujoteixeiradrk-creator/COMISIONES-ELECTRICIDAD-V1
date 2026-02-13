@@ -186,8 +186,10 @@
             
             <div class="download-section" id="downloadSectionGas" style="display: none; margin-top: 20px; background: #fff3cd; border: 2px solid #ffc107;">
                 <h2>✅ GAS - Procesamiento Completado</h2>
-                <p style="margin: 15px 0;">Descarga Excel de GAS:</p>
-                <button class="download-btn" onclick="downloadExcelGas()" style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);">📥 Descargar Excel GAS</button>
+                <p style="margin: 15px 0;">Elige cómo descargar:</p>
+                <button class="download-btn" onclick="downloadExcelGas()" style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);">📥 Descargar Excel GAS Completo</button>
+                <br>
+                <button class="download-btn secondary" onclick="downloadByComercialGas()" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);">📦 Descargar por Comercial GAS (ZIP)</button>
                 <p style="margin-top: 10px; font-size: 0.85em; color: #666;">
                     📊 Incluye: Detalle GAS + Resumen + Tarifas no encontradas
                 </p>
@@ -1192,6 +1194,86 @@
             const timestamp = new Date().toISOString().split('T')[0];
             XLSX.writeFile(processedWorkbookGas, `Liquidaciones_GAS_${timestamp}.xlsx`);
             showStatus('✅ Excel GAS descargado', 'success');
+        }
+        
+        async function downloadByComercialGas() {
+            if (!processedDataByGroupGas) {
+                showStatus('❌ No hay datos de GAS procesados', 'error');
+                return;
+            }
+            
+            try {
+                showStatus('⏳ Generando archivos GAS por comercial...', 'success');
+                
+                const zip = new JSZip();
+                const { numeroComercialGasMap } = allProcessedDataGas;
+                
+                Object.keys(processedDataByGroupGas).sort((a, b) => parseInt(a) - parseInt(b)).forEach(numCom => {
+                    const rows = processedDataByGroupGas[numCom];
+                    const nombresGrupo = numeroComercialGasMap[numCom] ? numeroComercialGasMap[numCom].nombres : [];
+                    const nombrePrincipal = nombresGrupo.length > 0 ? nombresGrupo[0] : 'Comercial_' + numCom;
+                    
+                    const comercialData = [];
+                    let currentRow = 2;
+                    const startRow = currentRow;
+                    
+                    rows.forEach(r => {
+                        const cleanRow = { ...r };
+                        delete cleanRow._numComercial;
+                        delete cleanRow._agente;
+                        delete cleanRow['Fórmula Cálculo']; // Ocultar fórmula al comercial
+                        comercialData.push(cleanRow);
+                        currentRow++;
+                    });
+                    
+                    const endRow = currentRow - 1;
+                    
+                    comercialData.push({});
+                    currentRow++;
+                    comercialData.push({});
+                    currentRow++;
+                    
+                    comercialData.push({
+                        'X': '',
+                        'Agente': 'SUBTOTAL GAS ' + nombrePrincipal,
+                        'Comisión': { f: `SUM(E${startRow}:E${endRow})` }
+                    });
+                    currentRow++;
+                    
+                    comercialData.push({
+                        'X': '',
+                        'Agente': 'SUBTOTAL GAS CON IVA ' + nombrePrincipal,
+                        'Comisión': { f: `1.21*SUM(E${startRow}:E${endRow})` }
+                    });
+                    
+                    const wb = XLSX.utils.book_new();
+                    const nombreHojaLimpio = limpiarNombre(nombrePrincipal);
+                    const ws = XLSX.utils.json_to_sheet(comercialData, { cellFormula: true });
+                    XLSX.utils.book_append_sheet(wb, ws, nombreHojaLimpio + '_GAS');
+                    
+                    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                    const nombreArchivoLimpio = `${String(numCom).padStart(2, '0')}_${nombrePrincipal.replace(/[^a-zA-Z0-9-]/g, '_')}_GAS`;
+                    const fileName = `${nombreArchivoLimpio}.xlsx`;
+                    
+                    zip.file(fileName, wbout);
+                });
+                
+                showStatus('⏳ Comprimiendo ZIP GAS...', 'success');
+                const content = await zip.generateAsync({ type: 'blob' });
+                
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(content);
+                link.download = 'Comisiones_GAS_Por_Comercial_' + new Date().toISOString().split('T')[0] + '.zip';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                showStatus('✅ ZIP GAS descargado correctamente', 'success');
+                
+            } catch (error) {
+                console.error('Error:', error);
+                showStatus('❌ Error: ' + error.message, 'error');
+            }
         }
         
         async function downloadByComercial() {
