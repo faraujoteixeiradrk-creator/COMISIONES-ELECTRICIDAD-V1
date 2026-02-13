@@ -632,7 +632,7 @@
                 const rowPrimeraComision = currentRow + 1; // Primera fila del resumen de comisiones
                 resumen.sort((a, b) => parseInt(a.numeroComercial) - parseInt(b.numeroComercial));
                 resumen.forEach(i => {
-                    final.push({ 'Agente': i.nombre, 'Numero': i.numeroComercial, 'Comisión': i.subtotal.toFixed(2) + ' €' });
+                    final.push({ 'Agente': i.nombre, 'Comisión': i.subtotal.toFixed(2) + ' €' });
                     currentRow++;
                 });
                 const rowUltimaComision = currentRow; // Última fila con comisión
@@ -798,6 +798,7 @@
                         const cleanRow = { ...r };
                         delete cleanRow._numComercial;
                         delete cleanRow._agente;
+                        delete cleanRow['Fórmula Cálculo']; // Ocultar fórmula al comercial
                         comercialData.push(cleanRow);
                         currentRow++;
                     });
