@@ -172,7 +172,7 @@
             <div id="statsContainer"></div>
             
             <div class="download-section" id="downloadSection">
-                <h2>✅ Procesamiento Completado</h2>
+                <h2>✅ ELECTRICIDAD - Procesamiento Completado</h2>
                 <p style="margin: 15px 0;">Elige cómo descargar:</p>
                 <button class="download-btn" id="downloadBtn">📥 Descargar Todo (Excel completo)</button>
                 <br>
@@ -181,6 +181,15 @@
                 <button class="download-btn script" id="downloadScriptBtn">🍎 Descargar Script Mac</button>
                 <p style="margin-top: 10px; font-size: 0.85em; color: #666;">
                     💡 <strong>Mac:</strong> Descarga ZIP + Script → Ejecuta el script → Outlook se abre con todos los emails
+                </p>
+            </div>
+            
+            <div class="download-section" id="downloadSectionGas" style="display: none; margin-top: 20px; background: #fff3cd; border: 2px solid #ffc107;">
+                <h2>✅ GAS - Procesamiento Completado</h2>
+                <p style="margin: 15px 0;">Descarga Excel de GAS:</p>
+                <button class="download-btn" onclick="downloadExcelGas()" style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);">📥 Descargar Excel GAS</button>
+                <p style="margin-top: 10px; font-size: 0.85em; color: #666;">
+                    📊 Incluye: Detalle GAS + Resumen + Tarifas no encontradas
                 </p>
             </div>
         </div>
@@ -342,6 +351,7 @@
                 try {
                     const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
                     await processExcel(wb);
+                    await processGas(wb);
                 } catch (error) {
                     document.getElementById('loading').style.display = 'none';
                     showStatus('❌ Error: ' + error.message, 'error');
