@@ -1616,7 +1616,7 @@ for numero, info in sorted(datos.items()):
 "
             end repeat
             try
-                set archivoGas to do shell script "echo " & quoted form of listaPaths & " | grep '/" & numeroComercial & "_.*_GAS\\.xlsx' | head -1"
+                set archivoGas to do shell script "echo " & quoted form of listaPaths & " | grep '/" & numeroComercial & "_' | grep '_GAS' | head -1"
             on error
                 set archivoGas to missing value
             end try
