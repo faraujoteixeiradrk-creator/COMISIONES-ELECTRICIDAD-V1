@@ -1336,9 +1336,10 @@
                     });
                     
                     const wb = XLSX.utils.book_new();
-                    const nombreHojaLimpio = limpiarNombre(nombrePrincipal);
+                    // Limitar nombre para dejar espacio al sufijo '_GAS' (31 - 4 = 27)
+                    const nombreHojaBase = limpiarNombre(nombrePrincipal).substring(0, 27);
                     const ws = XLSX.utils.json_to_sheet(comercialData, { cellFormula: true });
-                    XLSX.utils.book_append_sheet(wb, ws, nombreHojaLimpio + '_GAS');
+                    XLSX.utils.book_append_sheet(wb, ws, nombreHojaBase + '_GAS');
                     
                     const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
                     const nombreArchivoLimpio = `${String(numCom).padStart(2, '0')}_${nombrePrincipal.replace(/[^a-zA-Z0-9-]/g, '_')}_GAS`;
