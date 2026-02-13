@@ -1520,12 +1520,18 @@ if archivoZIPElec is not "" then
     set carpetaTempElec to (do shell script "mktemp -d") & "/"
     do shell script "unzip -q " & quoted form of archivoZIPElec & " -d " & quoted form of carpetaTempElec
     set archivosElec to paragraphs of (do shell script "find " & quoted form of carpetaTempElec & " -name '*.xlsx' -type f | grep -v '~$'")
+    log "Archivos electricidad encontrados: " & (count of archivosElec)
 end if
 
 if archivoZIPGas is not "" then
     set carpetaTempGas to (do shell script "mktemp -d") & "/"
     do shell script "unzip -q " & quoted form of archivoZIPGas & " -d " & quoted form of carpetaTempGas
     set archivosGas to paragraphs of (do shell script "find " & quoted form of carpetaTempGas & " -name '*.xlsx' -type f | grep -v '~$'")
+    log "Archivos gas encontrados: " & (count of archivosGas)
+    -- DEBUG: Mostrar primeros archivos
+    if (count of archivosGas) > 0 then
+        log "Ejemplo archivo gas: " & (item 1 of archivosGas)
+    end if
 end if
 
 -- Leer datos de comerciales desde Excel
@@ -1594,6 +1600,9 @@ for numero, info in sorted(datos.items()):
         set archivoElec to missing value
         set archivoGas to missing value
         
+        -- DEBUG: Log para ver qué busca
+        log "Buscando archivos para comercial: " & numeroComercial & " - " & nombreComercial
+        
         -- Buscar electricidad
         if (count of archivosElec) > 0 then
             set listaPaths to ""
@@ -1603,8 +1612,10 @@ for numero, info in sorted(datos.items()):
             end repeat
             try
                 set archivoElec to do shell script "echo " & quoted form of listaPaths & " | grep '/" & numeroComercial & "_' | head -1"
+                log "  ✓ Electricidad encontrado: " & archivoElec
             on error
                 set archivoElec to missing value
+                log "  ✗ Electricidad NO encontrado"
             end try
         end if
         
@@ -1617,8 +1628,10 @@ for numero, info in sorted(datos.items()):
             end repeat
             try
                 set archivoGas to do shell script "echo " & quoted form of listaPaths & " | grep '/" & numeroComercial & "_' | grep '_GAS' | head -1"
+                log "  ✓ Gas encontrado: " & archivoGas
             on error
                 set archivoGas to missing value
+                log "  ✗ Gas NO encontrado"
             end try
         end if
         
