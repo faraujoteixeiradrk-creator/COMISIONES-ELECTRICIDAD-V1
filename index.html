@@ -619,45 +619,51 @@
                 const total = resumen.reduce((s, a) => s + a.subtotal, 0);
                 const totalIVA = total * 1.21;
                 
-                final.push({});
-                const rowResumenStart = currentRow + 1; // Fila donde empieza "=== RESUMEN ==="
-                currentRow++;
+                // Crear HOJA SEPARADA para el resumen usando array de arrays
+                const resumenData = [];
                 
-                final.push({ 'A': '=== RESUMEN (SIN IVA) ===' });
-                currentRow++;
+                // Fila 1: Título en columna A
+                resumenData.push(['=== RESUMEN (SIN IVA) ===']);
                 
-                final.push({});
-                currentRow++;
+                // Fila 2: Vacía
+                resumenData.push([]);
                 
-                const rowPrimeraComision = currentRow + 1; // Primera fila del resumen de comisiones
+                // Filas 3+: Datos (A=Nombre, B=Comisión, C=Número)
+                const rowInicioResumen = 3;
                 resumen.sort((a, b) => parseInt(a.numeroComercial) - parseInt(b.numeroComercial));
                 resumen.forEach(i => {
-                    // Usar estructura simple con solo las 3 columnas necesarias
-                    final.push({ 
-                        'A': i.nombre,
-                        'B': i.numeroComercial, 
-                        'C': i.subtotal.toFixed(2) + ' €' 
-                    });
-                    currentRow++;
+                    resumenData.push([
+                        i.nombre,                           // Columna A
+                        i.subtotal.toFixed(2) + ' €',      // Columna B
+                        i.numeroComercial                   // Columna C
+                    ]);
                 });
-                const rowUltimaComision = currentRow; // Última fila con comisión
+                const rowFinResumen = rowInicioResumen + resumen.length - 1;
                 
-                final.push({});
-                currentRow++;
-                final.push({});
-                currentRow++;
+                // Líneas vacías
+                resumenData.push([]);
+                resumenData.push([]);
                 
-                // TOTAL GENERAL con fórmula en columna C
-                final.push({ 'A': 'TOTAL GENERAL:', 'C': { f: `SUM(C${rowPrimeraComision}:C${rowUltimaComision})` } });
-                currentRow++;
+                // TOTAL GENERAL en columna B
+                const rowTotalGeneral = rowFinResumen + 3;
+                resumenData.push([
+                    'TOTAL GENERAL:',                       // Columna A
+                    { f: `SUM(B${rowInicioResumen}:B${rowFinResumen})` }  // Columna B (fórmula)
+                ]);
                 
-                // TOTAL CON IVA con fórmula en columna C
-                final.push({ 'A': 'TOTAL CON IVA:', 'C': { f: `C${currentRow}*1.21` } });
-                currentRow++;
+                // TOTAL CON IVA en columna B
+                resumenData.push([
+                    'TOTAL CON IVA:',                       // Columna A
+                    { f: `B${rowTotalGeneral}*1.21` }      // Columna B (fórmula)
+                ]);
                 
                 const newWb = XLSX.utils.book_new();
                 const ws = XLSX.utils.json_to_sheet(final, { cellFormula: true });
-                XLSX.utils.book_append_sheet(newWb, ws, 'Hoja1');
+                XLSX.utils.book_append_sheet(newWb, ws, 'Detalle');
+                
+                // Añadir hoja de resumen desde array de arrays
+                const wsResumen = XLSX.utils.aoa_to_sheet(resumenData);
+                XLSX.utils.book_append_sheet(newWb, wsResumen, 'Resumen');
                 
                 // Hoja de tarifas no encontradas (incluye automáticas y manuales)
                 if (tarifasNoEncontradas.size > 0 || Object.keys(tarifasNuevas).length > 0) {
