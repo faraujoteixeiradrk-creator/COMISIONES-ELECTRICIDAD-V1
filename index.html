@@ -248,14 +248,6 @@
         document.getElementById('downloadByComercialBtn').addEventListener('click', downloadByComercial);
         document.getElementById('downloadScriptBtn').addEventListener('click', downloadScript);
         
-        // Event listeners GAS (cuando existan los botones)
-        setTimeout(() => {
-            const btnGas = document.getElementById('downloadBtnGas');
-            const btnZipGas = document.getElementById('downloadByComercialBtnGas');
-            if (btnGas) btnGas.addEventListener('click', downloadExcelGas);
-            if (btnZipGas) btnZipGas.addEventListener('click', downloadByComercialGas);
-        }, 100);
-        
         function showStatus(msg, type) {
             const s = document.getElementById('status');
             s.textContent = msg;
@@ -1262,6 +1254,10 @@
                 
                 showStatus('✅ GAS procesado: ' + processedGas.length + ' facturas', 'success');
                 document.getElementById('downloadSectionGas').style.display = 'block';
+                
+                // Añadir event listeners a botones GAS
+                document.getElementById('downloadBtnGas').addEventListener('click', downloadExcelGas);
+                document.getElementById('downloadByComercialBtnGas').addEventListener('click', downloadByComercialGas);
                 
                 return newWbGas;
                 
