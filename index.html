@@ -1300,7 +1300,10 @@
                 Object.keys(processedDataByGroupGas).sort((a, b) => parseInt(a) - parseInt(b)).forEach(numCom => {
                     const rows = processedDataByGroupGas[numCom];
                     const nombresGrupo = numeroComercialGasMap[numCom] ? numeroComercialGasMap[numCom].nombres : [];
-                    const nombrePrincipal = nombresGrupo.length > 0 ? nombresGrupo[0] : 'Comercial_' + numCom;
+                    let nombrePrincipal = nombresGrupo.length > 0 ? nombresGrupo[0] : 'Comercial_' + numCom;
+                    
+                    // Limpiar prefijo GAS- si existe
+                    nombrePrincipal = nombrePrincipal.replace(/^GAS-/, '');
                     
                     const comercialData = [];
                     let currentRow = 2;
@@ -1613,7 +1616,7 @@ for numero, info in sorted(datos.items()):
 "
             end repeat
             try
-                set archivoGas to do shell script "echo " & quoted form of listaPaths & " | grep '/" & numeroComercial & "_' | head -1"
+                set archivoGas to do shell script "echo " & quoted form of listaPaths & " | grep '/" & numeroComercial & "_.*_GAS\\.xlsx' | head -1"
             on error
                 set archivoGas to missing value
             end try
