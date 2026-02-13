@@ -1611,7 +1611,7 @@ for numero, info in sorted(datos.items()):
 "
             end repeat
             try
-                set archivoElec to do shell script "echo " & quoted form of listaPaths & " | grep '/" & numeroComercial & "_' | head -1"
+                set archivoElec to do shell script "echo " & quoted form of listaPaths & " | grep '/" & numeroComercial & "_' | grep -v '_GAS' | head -1"
                 log "  ✓ Electricidad encontrado: " & archivoElec
             on error
                 set archivoElec to missing value
@@ -1627,7 +1627,7 @@ for numero, info in sorted(datos.items()):
 "
             end repeat
             try
-                set archivoGas to do shell script "echo " & quoted form of listaPaths & " | grep '/" & numeroComercial & "_' | grep '_GAS' | head -1"
+                set archivoGas to do shell script "echo " & quoted form of listaPaths & " | grep '/" & numeroComercial & "_' | head -1"
                 log "  ✓ Gas encontrado: " & archivoGas
             on error
                 set archivoGas to missing value
