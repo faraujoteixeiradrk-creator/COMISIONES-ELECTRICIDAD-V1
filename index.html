@@ -818,13 +818,21 @@
         
         async function processGas(wb) {
             try {
+                console.log('🔍 Iniciando procesamiento de GAS...');
                 const sheetNames = wb.SheetNames;
+                console.log('📋 Hojas disponibles:', sheetNames);
+                
                 const datosGasSheet = wb.Sheets['DATOSGAS'] || wb.Sheets['DatosGas'] || wb.Sheets['datosgas'];
                 const comercialesGasSheet = wb.Sheets['COMERCIALESGAS'] || wb.Sheets['ComercialesGas'] || wb.Sheets['comercialesgas'];
                 const facturasGasSheet = wb.Sheets[sheetNames.find(n => n.toUpperCase().includes('FACTURASGAS') || n.toUpperCase().includes('FACTURAS GAS'))];
                 
+                console.log('✓ DATOSGAS:', datosGasSheet ? 'Encontrada' : 'NO encontrada');
+                console.log('✓ COMERCIALESGAS:', comercialesGasSheet ? 'Encontrada' : 'NO encontrada');
+                console.log('✓ FACTURASGAS:', facturasGasSheet ? 'Encontrada' : 'NO encontrada');
+                
                 if (!facturasGasSheet) {
-                    console.log('No se encontró hoja de facturas de GAS');
+                    console.log('ℹ️ No se encontró hoja FACTURASGAS - GAS no procesado');
+                    showStatus('ℹ️ Solo se procesó ELECTRICIDAD (no se encontró FACTURASGAS)', 'success');
                     return null;
                 }
                 
