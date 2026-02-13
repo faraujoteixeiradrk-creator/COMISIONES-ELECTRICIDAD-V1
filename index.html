@@ -177,10 +177,8 @@
                 <button class="download-btn" id="downloadBtn">📥 Descargar Todo (Excel completo)</button>
                 <br>
                 <button class="download-btn secondary" id="downloadByComercialBtn">📦 Descargar por Comercial (ZIP)</button>
-                <br>
-                <button class="download-btn script" id="downloadScriptBtn">🍎 Descargar Script Mac</button>
                 <p style="margin-top: 10px; font-size: 0.85em; color: #666;">
-                    💡 <strong>Mac:</strong> Descarga ZIP + Script → Ejecuta el script → Outlook se abre con todos los emails
+                    💡 <strong>ZIP:</strong> Un archivo Excel por cada comercial
                 </p>
             </div>
             
@@ -192,6 +190,18 @@
                 <button class="download-btn secondary" onclick="downloadByComercialGas()" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);">📦 Descargar por Comercial GAS (ZIP)</button>
                 <p style="margin-top: 10px; font-size: 0.85em; color: #666;">
                     📊 Incluye: Detalle GAS + Resumen + Tarifas no encontradas
+                </p>
+            </div>
+            
+            <div class="download-section" id="downloadSectionScript" style="display: none; margin-top: 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
+                <h2 style="color: white;">📧 ENVIAR CORREOS</h2>
+                <p style="margin: 15px 0; opacity: 0.95;">Descargar script para envío automático por Outlook (Mac)</p>
+                <button class="download-btn script" id="downloadScriptBtn" style="background: linear-gradient(135deg, #FF6B6B 0%, #FFE66D 100%); border: 3px solid white;">🍎 Descargar Script Mac</button>
+                <p style="margin-top: 15px; font-size: 0.85em; opacity: 0.9;">
+                    💡 <strong>Instrucciones:</strong><br>
+                    1. Descarga los ZIPs (Electricidad y/o Gas)<br>
+                    2. Descarga este script<br>
+                    3. Ejecuta el script → Outlook abrirá con todos los emails listos
                 </p>
             </div>
         </div>
@@ -397,6 +407,8 @@
             
             document.getElementById('loading').style.display = 'block';
             document.getElementById('downloadSection').style.display = 'none';
+            document.getElementById('downloadSectionGas').style.display = 'none';
+            document.getElementById('downloadSectionScript').style.display = 'none';
             document.getElementById('statsContainer').innerHTML = '';
             document.getElementById('status').style.display = 'none';
             document.getElementById('missingTariffs').style.display = 'none';
@@ -859,6 +871,7 @@
                 document.getElementById('loading').style.display = 'none';
                 showStatus(`✅ ${processed.length} facturas procesadas`, 'success');
                 document.getElementById('downloadSection').style.display = 'block';
+                document.getElementById('downloadSectionScript').style.display = 'block';
                 
             } catch (error) {
                 document.getElementById('loading').style.display = 'none';
@@ -1254,6 +1267,7 @@
                 
                 showStatus('✅ GAS procesado: ' + processedGas.length + ' facturas', 'success');
                 document.getElementById('downloadSectionGas').style.display = 'block';
+                document.getElementById('downloadSectionScript').style.display = 'block';
                 
                 return newWbGas;
                 
