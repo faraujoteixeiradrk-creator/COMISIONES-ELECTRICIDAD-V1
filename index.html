@@ -623,7 +623,7 @@
                 const rowResumenStart = currentRow + 1; // Fila donde empieza "=== RESUMEN ==="
                 currentRow++;
                 
-                final.push({ 'Agente': '=== RESUMEN (SIN IVA) ===' });
+                final.push({ 'A': '=== RESUMEN (SIN IVA) ===' });
                 currentRow++;
                 
                 final.push({});
@@ -632,7 +632,12 @@
                 const rowPrimeraComision = currentRow + 1; // Primera fila del resumen de comisiones
                 resumen.sort((a, b) => parseInt(a.numeroComercial) - parseInt(b.numeroComercial));
                 resumen.forEach(i => {
-                    final.push({ 'Agente': i.nombre, 'Comisión': i.subtotal.toFixed(2) + ' €' });
+                    // Usar estructura simple con solo las 3 columnas necesarias
+                    final.push({ 
+                        'A': i.nombre,
+                        'B': i.numeroComercial, 
+                        'C': i.subtotal.toFixed(2) + ' €' 
+                    });
                     currentRow++;
                 });
                 const rowUltimaComision = currentRow; // Última fila con comisión
@@ -642,12 +647,12 @@
                 final.push({});
                 currentRow++;
                 
-                // TOTAL GENERAL con fórmula
-                final.push({ 'Agente': 'TOTAL GENERAL:', 'Comisión': { f: `SUM(C${rowPrimeraComision}:C${rowUltimaComision})` } });
+                // TOTAL GENERAL con fórmula en columna C
+                final.push({ 'A': 'TOTAL GENERAL:', 'C': { f: `SUM(C${rowPrimeraComision}:C${rowUltimaComision})` } });
                 currentRow++;
                 
-                // TOTAL CON IVA con fórmula basada en la celda anterior
-                final.push({ 'Agente': 'TOTAL CON IVA:', 'Comisión': { f: `C${currentRow}*1.21` } });
+                // TOTAL CON IVA con fórmula en columna C
+                final.push({ 'A': 'TOTAL CON IVA:', 'C': { f: `C${currentRow}*1.21` } });
                 currentRow++;
                 
                 const newWb = XLSX.utils.book_new();
