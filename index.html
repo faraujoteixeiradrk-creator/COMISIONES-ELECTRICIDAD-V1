@@ -187,9 +187,9 @@
             <div class="download-section" id="downloadSectionGas" style="display: none; margin-top: 20px; background: #fff3cd; border: 2px solid #ffc107;">
                 <h2>✅ GAS - Procesamiento Completado</h2>
                 <p style="margin: 15px 0;">Elige cómo descargar:</p>
-                <button class="download-btn" onclick="downloadExcelGas()" style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);">📥 Descargar Excel GAS Completo</button>
+                <button class="download-btn" id="downloadBtnGas" style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);">📥 Descargar Excel GAS Completo</button>
                 <br>
-                <button class="download-btn secondary" onclick="downloadByComercialGas()" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);">📦 Descargar por Comercial GAS (ZIP)</button>
+                <button class="download-btn secondary" id="downloadByComercialBtnGas" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);">📦 Descargar por Comercial GAS (ZIP)</button>
                 <p style="margin-top: 10px; font-size: 0.85em; color: #666;">
                     📊 Incluye: Detalle GAS + Resumen + Tarifas no encontradas
                 </p>
@@ -247,6 +247,14 @@
         document.getElementById('downloadBtn').addEventListener('click', downloadFile);
         document.getElementById('downloadByComercialBtn').addEventListener('click', downloadByComercial);
         document.getElementById('downloadScriptBtn').addEventListener('click', downloadScript);
+        
+        // Event listeners GAS (cuando existan los botones)
+        setTimeout(() => {
+            const btnGas = document.getElementById('downloadBtnGas');
+            const btnZipGas = document.getElementById('downloadByComercialBtnGas');
+            if (btnGas) btnGas.addEventListener('click', downloadExcelGas);
+            if (btnZipGas) btnZipGas.addEventListener('click', downloadByComercialGas);
+        }, 100);
         
         function showStatus(msg, type) {
             const s = document.getElementById('status');
@@ -325,6 +333,59 @@
                 
                 if (isNaN(porcentajeNum) || porcentajeNum <= 0) {
                     alert(`⚠️ Porcentaje inválido: "${porcentaje}"\nDebe ser un número mayor que 0.\n\nEjemplos válidos: 0.30, 0,30, 0.25, 0,25\n\nComercial NO guardado.`);
+                    resolve(null);
+                    return;
+                }
+                
+                resolve({
+                    numero: parseInt(numero),
+                    porcentaje: porcentajeNum
+                });
+            });
+        }
+        
+        // FUNCIONES PARA GAS
+        async function preguntarTarifaGasNueva(nombreTarifa, peaje) {
+            return new Promise((resolve) => {
+                const comision = prompt(`⚠️ TARIFA GAS NO ENCONTRADA: "${nombreTarifa}"\nPeaje: ${peaje}\n\n¿Qué comisión debe aplicarse?\n(en €/MWh)\n\nEjemplos: 15  o  18,5  o  20.5`);
+                if (comision === null || comision.trim() === '') {
+                    resolve(null);
+                    return;
+                }
+                
+                const comisionNormalizada = comision.replace(',', '.');
+                const comisionNum = parseFloat(comisionNormalizada);
+                
+                if (isNaN(comisionNum) || comisionNum <= 0) {
+                    alert(`⚠️ Comisión inválida: "${comision}"\nDebe ser un número mayor que 0.\n\nTarifa GAS NO guardada.`);
+                    resolve(null);
+                    return;
+                }
+                
+                resolve(comisionNum);
+            });
+        }
+        
+        async function preguntarComercialGasNuevo(nombreComercial) {
+            return new Promise((resolve) => {
+                const numero = prompt(`⚠️ COMERCIAL GAS NO ENCONTRADO: "${nombreComercial}"\n\n¿Qué número de comercial le asignamos?`);
+                if (numero === null || numero.trim() === '') {
+                    resolve(null);
+                    return;
+                }
+                
+                const porcentaje = prompt(`Comercial GAS: ${nombreComercial}\nNúmero: ${numero}\n\n¿Qué porcentaje de comisión?\n\nEjemplos:\n- Para 30% escribe: 0.30 o 0,30\n- Para 75% escribe: 0.75 o 0,75`);
+                if (porcentaje === null || porcentaje.trim() === '') {
+                    alert('⚠️ Porcentaje no puede estar vacío. Comercial GAS NO guardado.');
+                    resolve(null);
+                    return;
+                }
+                
+                const porcentajeNormalizado = porcentaje.replace(',', '.');
+                const porcentajeNum = parseFloat(porcentajeNormalizado);
+                
+                if (isNaN(porcentajeNum) || porcentajeNum <= 0) {
+                    alert(`⚠️ Porcentaje inválido: "${porcentaje}"\nComercial GAS NO guardado.`);
                     resolve(null);
                     return;
                 }
@@ -960,14 +1021,26 @@
                     if (tarifaData) {
                         comisionBase = tarifaData[peaje] || 0;
                     } else {
-                        // Tarifa no encontrada - marcar pero CONTINUAR procesando
+                        // Buscar en tarifas ya preguntadas
+                        const key = `${grupo}|${peaje}`;
+                        if (tarifasGasNuevas[key]) {
+                            comisionBase = tarifasGasNuevas[key];
+                        } else {
+                            // PREGUNTAR al usuario
+                            const respuesta = await preguntarTarifaGasNueva(grupoOriginal, tarifaPeaje);
+                            if (respuesta) {
+                                tarifasGasNuevas[key] = respuesta;
+                                comisionBase = respuesta;
+                            } else {
+                                // Usuario canceló - usar 0
+                                comisionBase = 0;
+                            }
+                        }
+                        
                         tarifasGasNoEncontradas.add(JSON.stringify({ 
                             tarifa: grupoOriginal, 
                             peaje: peaje 
                         }));
-                        // FASE 1: Usar comisión 0 para generar Excel
-                        // FASE 4: Aquí preguntaremos al usuario
-                        comisionBase = 0;
                     }
                     
                     const comercialU = String(comercial).toUpperCase().trim();
@@ -982,14 +1055,35 @@
                         }
                     }
                     
-                    // FASE 1: Si no encuentra comercial, usar valores por defecto
-                    // FASE 4: Aquí preguntaremos al usuario
+                    // Buscar en comerciales ya preguntados
+                    if (!comercialInfo && comercialesGasNuevos[comercialU]) {
+                        comercialInfo = comercialesGasNuevos[comercialU];
+                    }
+                    
+                    // PREGUNTAR al usuario si no existe
                     if (!comercialInfo) {
-                        comercialInfo = {
-                            numeroComercial: '00',
-                            porcentaje: 0,
-                            nombreOriginal: comercial
-                        };
+                        const respuesta = await preguntarComercialGasNuevo(comercial);
+                        if (respuesta) {
+                            comercialesGasNuevos[comercialU] = {
+                                numeroComercial: String(respuesta.numero).padStart(2, '0'),
+                                porcentaje: respuesta.porcentaje,
+                                nombreOriginal: comercial
+                            };
+                            comercialInfo = comercialesGasNuevos[comercialU];
+                            
+                            // Actualizar mapa para resumen
+                            if (!numeroComercialGasMap[comercialInfo.numeroComercial]) {
+                                numeroComercialGasMap[comercialInfo.numeroComercial] = { nombres: [], porcentaje: respuesta.porcentaje };
+                            }
+                            numeroComercialGasMap[comercialInfo.numeroComercial].nombres.push(comercial);
+                        } else {
+                            // Usuario canceló - usar valores por defecto
+                            comercialInfo = {
+                                numeroComercial: '00',
+                                porcentaje: 0,
+                                nombreOriginal: comercial
+                            };
+                        }
                     }
                     
                     const numeroComercial = comercialInfo.numeroComercial;
