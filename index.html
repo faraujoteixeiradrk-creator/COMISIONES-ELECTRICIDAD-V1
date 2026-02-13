@@ -170,6 +170,7 @@
             </div>
             
             <div id="statsContainer"></div>
+            <div id="statsContainerGas"></div>
             
             <div class="download-section" id="downloadSection">
                 <h2>✅ ELECTRICIDAD - Procesamiento Completado</h2>
@@ -410,6 +411,7 @@
             document.getElementById('downloadSectionGas').style.display = 'none';
             document.getElementById('downloadSectionScript').style.display = 'none';
             document.getElementById('statsContainer').innerHTML = '';
+            document.getElementById('statsContainerGas').innerHTML = '';
             document.getElementById('status').style.display = 'none';
             document.getElementById('missingTariffs').style.display = 'none';
             
@@ -1264,6 +1266,19 @@
                 processedWorkbookGas = newWbGas;
                 processedDataByGroupGas = groupsGas;
                 allProcessedDataGas = { numeroComercialGasMap, tarifasGasNoEncontradas };
+                
+                // Calcular total GAS
+                const totalGas = resumenGas.reduce((s, a) => s + a.subtotal, 0);
+                
+                // Mostrar estadísticas de GAS
+                document.getElementById('statsContainerGas').innerHTML = `
+                    <div class="stats" style="margin-top: 20px;">
+                        <div class="stat-card" style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);"><h3>${processedGas.length}</h3><p>Facturas GAS</p></div>
+                        <div class="stat-card" style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);"><h3>${Object.keys(groupsGas).length}</h3><p>Comerciales</p></div>
+                        <div class="stat-card" style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);"><h3>${tarifasGasNoEncontradas.size}</h3><p>Tarifas pendientes</p></div>
+                        <div class="stat-card" style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);"><h3>${totalGas.toFixed(2)}€</h3><p>Total GAS</p></div>
+                    </div>
+                `;
                 
                 showStatus('✅ GAS procesado: ' + processedGas.length + ' facturas', 'success');
                 document.getElementById('downloadSectionGas').style.display = 'block';
