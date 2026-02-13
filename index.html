@@ -931,8 +931,26 @@
                     
                     if (!grupoOriginal || !consumo || !tarifaPeaje) continue;
                     
-                    const grupo = String(grupoOriginal).toUpperCase().trim();
+                    // Normalizar grupo: eliminar número del final (ej: "Sport HI Index 1" → "Sport HI Index")
+                    let grupoLimpio = String(grupoOriginal).trim();
+                    grupoLimpio = grupoLimpio.replace(/\s+\d+$/, ''); // Eliminar " 1", " 2", etc. del final
+                    const grupo = grupoLimpio.toUpperCase().trim();
+                    
                     const peaje = String(tarifaPeaje).toUpperCase().trim();
+                    
+                    // DEBUG: Log de primera factura para ver qué busca
+                    if (processedGas.length === 0) {
+                        console.log('🔍 Primera factura GAS:');
+                        console.log('  Grupo original:', grupoOriginal);
+                        console.log('  Grupo limpio:', grupoLimpio);
+                        console.log('  Grupo normalizado:', grupo);
+                        console.log('  Peaje original:', tarifaPeaje);
+                        console.log('  Peaje normalizado:', peaje);
+                        console.log('  ¿Existe en mapa?', tarifasGasMap[grupo] ? 'SÍ' : 'NO');
+                        if (tarifasGasMap[grupo]) {
+                            console.log('  Comisión para peaje:', tarifasGasMap[grupo][peaje]);
+                        }
+                    }
                     
                     let comisionBase = 0;
                     let tarifaData = tarifasGasMap[grupo];
