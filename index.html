@@ -187,9 +187,9 @@
             <div class="download-section" id="downloadSectionGas" style="display: none; margin-top: 20px; background: #fff3cd; border: 2px solid #ffc107;">
                 <h2>✅ GAS - Procesamiento Completado</h2>
                 <p style="margin: 15px 0;">Elige cómo descargar:</p>
-                <button class="download-btn" id="downloadBtnGas" style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);">📥 Descargar Excel GAS Completo</button>
+                <button class="download-btn" onclick="downloadExcelGas()" style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);">📥 Descargar Excel GAS Completo</button>
                 <br>
-                <button class="download-btn secondary" id="downloadByComercialBtnGas" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);">📦 Descargar por Comercial GAS (ZIP)</button>
+                <button class="download-btn secondary" onclick="downloadByComercialGas()" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);">📦 Descargar por Comercial GAS (ZIP)</button>
                 <p style="margin-top: 10px; font-size: 0.85em; color: #666;">
                     📊 Incluye: Detalle GAS + Resumen + Tarifas no encontradas
                 </p>
@@ -1255,10 +1255,6 @@
                 showStatus('✅ GAS procesado: ' + processedGas.length + ' facturas', 'success');
                 document.getElementById('downloadSectionGas').style.display = 'block';
                 
-                // Añadir event listeners a botones GAS
-                document.getElementById('downloadBtnGas').addEventListener('click', downloadExcelGas);
-                document.getElementById('downloadByComercialBtnGas').addEventListener('click', downloadByComercialGas);
-                
                 return newWbGas;
                 
             } catch (error) {
@@ -1287,6 +1283,9 @@
         }
         
         async function downloadByComercialGas() {
+            console.log('🔍 downloadByComercialGas llamada');
+            console.log('processedDataByGroupGas:', processedDataByGroupGas);
+            
             if (!processedDataByGroupGas) {
                 showStatus('❌ No hay datos de GAS procesados', 'error');
                 return;
