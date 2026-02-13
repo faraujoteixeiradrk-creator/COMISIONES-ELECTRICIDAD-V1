@@ -1658,10 +1658,26 @@ for numero, info in sorted(datos.items()):
             -- Adjuntar archivos
             tell nuevoEmail
                 if archivoElec is not missing value then
-                    make new attachment with properties {file:POSIX file archivoElec}
+                    try
+                        log "    Adjuntando electricidad: " & archivoElec
+                        -- Verificar que existe
+                        do shell script "test -f " & quoted form of archivoElec
+                        make new attachment with properties {file:POSIX file archivoElec}
+                        log "    ✓ Electricidad adjuntado"
+                    on error errMsg
+                        log "    ✗ Error adjuntando electricidad: " & errMsg
+                    end try
                 end if
                 if archivoGas is not missing value then
-                    make new attachment with properties {file:POSIX file archivoGas}
+                    try
+                        log "    Adjuntando gas: " & archivoGas
+                        -- Verificar que existe
+                        do shell script "test -f " & quoted form of archivoGas
+                        make new attachment with properties {file:POSIX file archivoGas}
+                        log "    ✓ Gas adjuntado"
+                    on error errMsg
+                        log "    ✗ Error adjuntando gas: " & errMsg
+                    end try
                 end if
             end tell
             
