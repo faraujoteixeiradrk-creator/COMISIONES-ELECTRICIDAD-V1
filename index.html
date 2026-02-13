@@ -1165,6 +1165,17 @@
             showStatus('✅ Excel completo descargado', 'success');
         }
         
+        function downloadExcelGas() {
+            if (!processedWorkbookGas) {
+                showStatus('⚠️ No hay datos de GAS procesados', 'error');
+                return;
+            }
+            
+            const timestamp = new Date().toISOString().split('T')[0];
+            XLSX.writeFile(processedWorkbookGas, `Liquidaciones_GAS_${timestamp}.xlsx`);
+            showStatus('✅ Excel GAS descargado', 'success');
+        }
+        
         async function downloadByComercial() {
             if (!processedDataByGroup) {
                 showStatus('❌ No hay datos procesados', 'error');
