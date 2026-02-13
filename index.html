@@ -1447,177 +1447,122 @@
         }
         
         function downloadScript() {
-            const scriptContent = `-- SCRIPT AUTOMÁTICO DE LIQUIDACIONES CON OUTLOOK
--- Este script busca automáticamente el ZIP y Excel en Descargas
--- y crea emails en Outlook con archivos adjuntos
+            const scriptContent = `-- SCRIPT AUTOMÁTICO OUTLOOK - ELECTRICIDAD + GAS
+-- Busca y adjunta archivos de electricidad y/o gas según disponibilidad
 
--- CONFIGURACIÓN
-set nombreRemitente to "Fernando"
 set carpetaDescargas to (path to downloads folder as text)
 
 try
     set rutaDescargas to POSIX path of carpetaDescargas
     
-    -- Buscar ZIP más reciente
-    set comandoBuscarZIP to "find " & quoted form of rutaDescargas & " -name 'Comisiones_Por_Comercial_*.zip' -type f -mtime -1 | head -1"
-    set archivoZIP to do shell script comandoBuscarZIP
+    -- Buscar ZIPs más recientes
+    set comandoBuscarZIPElec to "find " & quoted form of rutaDescargas & " -name 'Comisiones_Por_Comercial_*.zip' -type f -mtime -1 | grep -v GAS | head -1"
+    set archivoZIPElec to do shell script comandoBuscarZIPElec
     
-    if archivoZIP is "" then
-        display dialog "❌ No se encontró el archivo ZIP de comisiones en Descargas.
+    set comandoBuscarZIPGas to "find " & quoted form of rutaDescargas & " -name 'Comisiones_GAS_Por_Comercial_*.zip' -type f -mtime -1 | head -1"
+    set archivoZIPGas to do shell script comandoBuscarZIPGas
+    
+    if archivoZIPElec is "" and archivoZIPGas is "" then
+        display dialog "❌ No se encontraron ZIPs de comisiones.
 
-Por favor:
-1. Descarga el ZIP desde la calculadora web
-2. Ejecuta este script de nuevo" buttons {"OK"} default button 1 with icon stop
+Por favor descarga:
+- ZIP Electricidad (botón rosa)
+- ZIP Gas (botón rojo)
+
+Y ejecuta este script de nuevo." buttons {"OK"} with icon stop
         return
     end if
     
-    -- Buscar Excel original más reciente
-    set comandoBuscarExcel to "find " & quoted form of rutaDescargas & " -maxdepth 1 -name '*comision*.xlsx' -o -name '*COMISION*.xlsx' -type f -mtime -1 | head -1"
-    set archivoExcelOriginal to do shell script comandoBuscarExcel
+    -- Buscar Excel de comisiones
+    set comandoBuscarExcel to "find " & quoted form of rutaDescargas & " -maxdepth 1 -iname '*comision*.xlsx' -type f -mtime -1 | head -1"
+    set archivoExcel to do shell script comandoBuscarExcel
     
-    if archivoExcelOriginal is "" then
-        display dialog "❌ No se encontró el archivo de comisiones en Descargas.
-
-Debe llamarse: comisiones.xlsx (o similar)
-Y tener una hoja llamada: COMISIONES
-
-Con las columnas:
-- Columna B: Número comercial
-- Columna D: Nombre
-- Columnas E-H: Emails" buttons {"OK"} default button 1 with icon stop
+    if archivoExcel is "" then
+        display dialog "❌ No se encontró el Excel de comisiones." buttons {"OK"} with icon stop
         return
     end if
     
     -- Mostrar confirmación
-    set nombreZIP to do shell script "basename " & quoted form of archivoZIP
-    set nombreExcel to do shell script "basename " & quoted form of archivoExcelOriginal
-    
-    display dialog "📋 Archivos encontrados:
+    set mensaje to "📋 Archivos encontrados:
 
-ZIP: " & nombreZIP & "
-Excel: " & nombreExcel & "
-
-¿Proceder con el envío de emails?" buttons {"Cancelar", "Continuar"} default button 2
-    
-    if button returned of result is "Cancelar" then
-        return
+"
+    if archivoZIPElec is not "" then
+        set nombreZIPElec to do shell script "basename " & quoted form of archivoZIPElec
+        set mensaje to mensaje & "⚡ Electricidad: " & nombreZIPElec & "
+"
     end if
+    if archivoZIPGas is not "" then
+        set nombreZIPGas to do shell script "basename " & quoted form of archivoZIPGas
+        set mensaje to mensaje & "🔥 Gas: " & nombreZIPGas & "
+"
+    end if
+    set mensaje to mensaje & "
+¿Continuar?"
+    
+    display dialog mensaje buttons {"Cancelar", "Continuar"} default button 2
+    if button returned of result is "Cancelar" then return
     
 on error errorMessage
-    display dialog "❌ Error: " & errorMessage buttons {"OK"} default button 1 with icon stop
+    display dialog "❌ Error: " & errorMessage buttons {"OK"} with icon stop
     return
 end try
 
--- Descomprimir ZIP
-set carpetaTemporal to (do shell script "mktemp -d") & "/"
-do shell script "unzip -q " & quoted form of archivoZIP & " -d " & quoted form of carpetaTemporal
+-- Crear carpetas temporales
+set carpetaTempElec to ""
+set carpetaTempGas to ""
+set archivosElec to {}
+set archivosGas to {}
 
--- Obtener archivos Excel descomprimidos (buscar recursivamente y excluir temporales)
-set archivosExcel to paragraphs of (do shell script "find " & quoted form of carpetaTemporal & " -name '*.xlsx' -type f | grep -v '~$'")
-
-if (count of archivosExcel) is 0 then
-    display dialog "❌ No se encontraron archivos Excel en el ZIP" buttons {"OK"} default button 1 with icon stop
-    do shell script "rm -rf " & quoted form of carpetaTemporal
-    return
+if archivoZIPElec is not "" then
+    set carpetaTempElec to (do shell script "mktemp -d") & "/"
+    do shell script "unzip -q " & quoted form of archivoZIPElec & " -d " & quoted form of carpetaTempElec
+    set archivosElec to paragraphs of (do shell script "find " & quoted form of carpetaTempElec & " -name '*.xlsx' -type f | grep -v '~$'")
 end if
 
--- Leer datos de emails usando Python
+if archivoZIPGas is not "" then
+    set carpetaTempGas to (do shell script "mktemp -d") & "/"
+    do shell script "unzip -q " & quoted form of archivoZIPGas & " -d " & quoted form of carpetaTempGas
+    set archivosGas to paragraphs of (do shell script "find " & quoted form of carpetaTempGas & " -name '*.xlsx' -type f | grep -v '~$'")
+end if
+
+-- Leer datos de comerciales desde Excel
 set scriptPython to "
-import sys
-import subprocess
-
-# Intentar importar openpyxl, si falla, instalarlo automáticamente
-try:
-    import openpyxl
-except ImportError:
-    print('Instalando openpyxl...')
-    subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--user', 'openpyxl'])
-    import openpyxl
-
+import sys, subprocess
+try: import openpyxl
+except: subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--user', 'openpyxl']); import openpyxl
 import json
 
-try:
-    wb = openpyxl.load_workbook('" & archivoExcelOriginal & "', data_only=True)
+wb = openpyxl.load_workbook('" & archivoExcel & "', data_only=True)
+hoja = next((n for n in wb.sheetnames if 'COMISION' in n.upper()), wb.sheetnames[0])
+ws = wb[hoja]
+datos = {}
+
+for row in ws.iter_rows(min_row=2, values_only=True):
+    if not row or len(row) < 2: continue
+    num = row[1]
+    if not num: continue
     
-    # Buscar hoja COMISIONES con variaciones
-    hoja_comisiones = None
-    for nombre_hoja in wb.sheetnames:
-        if 'COMISION' in nombre_hoja.upper():
-            hoja_comisiones = nombre_hoja
-            break
-    
-    # Si no encuentra COMISIONES, usar la primera hoja disponible
-    if not hoja_comisiones:
-        if len(wb.sheetnames) > 0:
-            hoja_comisiones = wb.sheetnames[0]
-            print(f'AVISO: Usando hoja {hoja_comisiones} (no se encontró hoja COMISIONES)')
+    try:
+        if isinstance(num, (int, float)): numero = str(int(num)).zfill(2)
         else:
-            print('ERROR: El Excel no tiene hojas')
-            sys.exit(1)
+            import re
+            nums = re.findall(r'\\\\\\\\d+', str(num))
+            numero = str(int(nums[0])).zfill(2) if nums else None
+    except: continue
     
-    ws = wb[hoja_comisiones]
-    datos = {}
+    if not numero: continue
+    nombre = str(row[3]) if len(row) > 3 and row[3] else str(row[0])
+    emails = [str(row[i]).strip() for i in range(4, min(8, len(row))) if row[i] and '@' in str(row[i])]
     
-    for row in ws.iter_rows(min_row=2, values_only=True):
-        if not row or len(row) < 2:
-            continue
-            
-        # Columna B (Número comercial) - puede ser texto o número
-        num_comercial = row[1] if len(row) > 1 else None
-        if not num_comercial:
-            continue
-            
-        # Convertir a string y extraer solo números si es necesario
-        try:
-            if isinstance(num_comercial, (int, float)):
-                numero = str(int(num_comercial)).zfill(2)
-            else:
-                # Extraer números del texto (ej: 'A00003' -> '03')
-                import re
-                nums = re.findall(r'\\\\d+', str(num_comercial))
-                if nums:
-                    numero = str(int(nums[0])).zfill(2)
-                else:
-                    continue
-        except:
-            continue
-        
-        # Columna D (Nombre)
-        nombre = str(row[3]) if len(row) > 3 and row[3] else str(row[0])
-        
-        # Columnas E, F, G, H (Emails)
-        emails = []
-        for col_idx in range(4, min(8, len(row))):
-            if row[col_idx] and '@' in str(row[col_idx]):
-                emails.append(str(row[col_idx]).strip())
-        
-        # Solo agregar si tiene al menos un email
-        if emails:
-            datos[numero] = {
-                'nombre': nombre,
-                'emails': emails
-            }
-    
-    print(json.dumps(datos, ensure_ascii=False))
-except Exception as e:
-    print(f'ERROR: {str(e)}')
-    sys.exit(1)
+    if emails: datos[numero] = {'nombre': nombre, 'emails': emails}
+
+print(json.dumps(datos, ensure_ascii=False))
 "
 
 set datosJSON to do shell script "python3 -c " & quoted form of scriptPython
 
-if datosJSON starts with "ERROR:" then
-    display dialog "❌ " & datosJSON buttons {"OK"} default button 1 with icon stop
-    do shell script "rm -rf " & quoted form of carpetaTemporal
-    return
-end if
-
 -- Obtener mes actual
-set scriptMes to "
-import datetime
-meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
-print(meses[datetime.datetime.now().month - 1])
-"
+set scriptMes to "import datetime; print(['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][datetime.datetime.now().month-1])"
 set mesActual to do shell script "python3 -c " & quoted form of scriptMes
 
 -- Crear emails en Outlook
@@ -1628,14 +1573,11 @@ tell application "Microsoft Outlook"
 import json
 datos = json.loads('''" & datosJSON & "''')
 for numero, info in sorted(datos.items()):
-    nombre = info['nombre']
-    emails = ';'.join(info['emails'])
-    print(f'{numero}|{nombre}|{emails}')
+    print(f\\"{numero}|{info['nombre']}|{';'.join(info['emails'])}\\")
 "
     
     set lineasDatos to paragraphs of (do shell script "python3 -c " & quoted form of scriptParsear)
     set contadorEmails to 0
-    set comercialesSinArchivo to {}
     
     repeat with lineaDato in lineasDatos
         set AppleScript's text item delimiters to "|"
@@ -1645,88 +1587,85 @@ for numero, info in sorted(datos.items()):
         set emailsDestino to item 3 of datosParte
         set AppleScript's text item delimiters to ""
         
-        -- Buscar archivo Excel correspondiente (match exacto al inicio)
-        set archivoEncontrado to missing value
+        -- Buscar archivos de este comercial
+        set archivoElec to missing value
+        set archivoGas to missing value
         
-        -- Convertir lista a string separado por saltos de línea para grep
-        set listaPaths to ""
-        repeat with archivoPath in archivosExcel
-            set listaPaths to listaPaths & archivoPath & "
+        -- Buscar electricidad
+        if (count of archivosElec) > 0 then
+            set listaPaths to ""
+            repeat with archivoPath in archivosElec
+                set listaPaths to listaPaths & archivoPath & "
 "
-        end repeat
+            end repeat
+            try
+                set archivoElec to do shell script "echo " & quoted form of listaPaths & " | grep '/" & numeroComercial & "_' | head -1"
+            on error
+                set archivoElec to missing value
+            end try
+        end if
         
-        try
-            -- Usar grep para encontrar archivo que EMPIECE con "numero_"
-            -- El patrón /numero_ busca "/61_" al inicio del nombre de archivo
-            set archivoEncontrado to do shell script "echo " & quoted form of listaPaths & " | grep '/" & numeroComercial & "_' | head -1"
-            -- Si grep no encuentra nada, devolverá vacío y lanzará error
-        on error
-            set archivoEncontrado to missing value
-        end try
+        -- Buscar gas
+        if (count of archivosGas) > 0 then
+            set listaPaths to ""
+            repeat with archivoPath in archivosGas
+                set listaPaths to listaPaths & archivoPath & "
+"
+            end repeat
+            try
+                set archivoGas to do shell script "echo " & quoted form of listaPaths & " | grep '/" & numeroComercial & "_' | head -1"
+            on error
+                set archivoGas to missing value
+            end try
+        end if
         
-        if archivoEncontrado is not missing value then
-            -- Crear email
+        -- Si tiene al menos un archivo, crear email
+        if archivoElec is not missing value or archivoGas is not missing value then
             set nuevoEmail to make new outgoing message with properties {subject:"Liquidaciones " & mesActual & " - " & nombreComercial}
             
             -- Añadir destinatarios
             set AppleScript's text item delimiters to ";"
             set listaEmails to text items of emailsDestino
             set AppleScript's text item delimiters to ""
-            
             repeat with unEmail in listaEmails
                 make new recipient at nuevoEmail with properties {email address:{address:unEmail}}
             end repeat
             
-            -- Crear cuerpo
-            -- Crear cuerpo HTML para que respete los saltos de línea
+            -- Crear cuerpo HTML
             set contenidoHTML to "<html><body style='font-family: Arial, sans-serif; font-size: 11pt;'>"
             set contenidoHTML to contenidoHTML & "<p>Buenos días " & nombreComercial & ",</p>"
             set contenidoHTML to contenidoHTML & "<p>&nbsp;</p>"
             set contenidoHTML to contenidoHTML & "<p>Te envío las liquidaciones del mes de " & mesActual & ".</p>"
             set contenidoHTML to contenidoHTML & "</body></html>"
-            
             set content of nuevoEmail to contenidoHTML
             
-            -- Adjuntar archivo
+            -- Adjuntar archivos
             tell nuevoEmail
-                make new attachment with properties {file:POSIX file archivoEncontrado}
+                if archivoElec is not missing value then
+                    make new attachment with properties {file:POSIX file archivoElec}
+                end if
+                if archivoGas is not missing value then
+                    make new attachment with properties {file:POSIX file archivoGas}
+                end if
             end tell
             
-            -- Abrir email
             open nuevoEmail
-            
             set contadorEmails to contadorEmails + 1
             delay 1
-        else
-            set end of comercialesSinArchivo to nombreComercial
         end if
     end repeat
 end tell
 
--- Limpiar y mostrar resultado
-do shell script "rm -rf " & quoted form of carpetaTemporal
+-- Limpiar
+if carpetaTempElec is not "" then do shell script "rm -rf " & quoted form of carpetaTempElec
+if carpetaTempGas is not "" then do shell script "rm -rf " & quoted form of carpetaTempGas
 
-set mensaje to "✅ Proceso completado
+display dialog "✅ Proceso completado
 
-Emails creados: " & contadorEmails
-
-if (count of comercialesSinArchivo) > 0 then
-    set mensaje to mensaje & "
-
-⚠️ Comerciales sin archivo Excel:
-"
-    repeat with comercial in comercialesSinArchivo
-        set mensaje to mensaje & "- " & comercial & "
-"
-    end repeat
-end if
-
-set mensaje to mensaje & "
+Emails creados: " & contadorEmails & "
 
 Los emails están abiertos en Outlook.
-Revisa y envía cada uno."
-
-display dialog mensaje buttons {"OK"} default button 1`;
+Revisa y envía cada uno." buttons {"OK"}`;
             
             const blob = new Blob([scriptContent], { type: 'text/plain;charset=utf-8' });
             const link = document.createElement('a');
@@ -1737,7 +1676,7 @@ display dialog mensaje buttons {"OK"} default button 1`;
             document.body.removeChild(link);
             
             showStatus('✅ Script descargado correctamente', 'success');
-            alert('📥 Script descargado: Enviar_Liquidaciones_Outlook.scpt\n\n✅ PASOS:\n\n1. Descarga primero el ZIP (botón rosa)\n2. Haz doble clic en el archivo .scpt descargado\n3. El script buscará automáticamente los archivos\n4. Outlook abrirá con todos los emails\n\n⚠️ REQUISITO (solo primera vez):\npip3 install openpyxl');
+            alert('📥 Script descargado: Enviar_Liquidaciones_Outlook.scpt\n\n✅ PASOS:\n\n1. Descarga ZIP Electricidad (botón rosa) y/o ZIP Gas (botón rojo)\n2. Haz doble clic en el archivo .scpt descargado\n3. El script buscará automáticamente los archivos\n4. Outlook abrirá con todos los emails\n\n💡 El script adjunta automáticamente:\n- Archivo electricidad si existe\n- Archivo gas si existe\n- Ambos si el comercial tiene los dos\n\n⚠️ REQUISITO (solo primera vez):\npip3 install openpyxl');
         }
     </script>
 </body>
