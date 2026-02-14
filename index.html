@@ -1801,6 +1801,7 @@ Revisa y envía cada uno." buttons {"OK"}`;
                     const detalleData = XLSX.utils.sheet_to_json(detalleSheet);
                     const tarifasActivasMap = {};
                     const conteoPorTarifa = {};
+                    const todosPeajes = new Set(); // Todos los peajes encontrados
                     
                     for (const row of detalleData) {
                         const grupo = row['Grupo'];
@@ -1809,6 +1810,8 @@ Revisa y envía cada uno." buttons {"OK"}`;
                         
                         const grupoUpper = String(grupo).toUpperCase().trim();
                         const peajeNorm = String(tarifaPeaje).trim();
+                        
+                        todosPeajes.add(peajeNorm); // Guardar todos los peajes
                         
                         if (!tarifasActivasMap[grupoUpper]) {
                             tarifasActivasMap[grupoUpper] = {
@@ -1891,13 +1894,14 @@ Revisa y envía cada uno." buttons {"OK"}`;
                         info.facturas = totalFacturas;
                     }
                     
-                    // Clasificar por peaje
-                    const peajes = ['2.0 TD', '3.0 TD', '6.1 TD'];
+                    // Clasificar por peaje - usar todos los peajes encontrados
+                    console.log('Peajes encontrados:', Array.from(todosPeajes));
                     
-                    for (const peaje of peajes) {
+                    for (const peaje of todosPeajes) {
                         const tarifasDelPeaje = [];
                         
                         for (const [key, info] of todasLasTarifasElec.entries()) {
+                            // Solo incluir si esta tarifa tiene este peaje
                             if (info.peajes.includes(peaje)) {
                                 const keyConteo = `${key}|${peaje}`;
                                 tarifasDelPeaje.push({
@@ -1920,7 +1924,10 @@ Revisa y envía cada uno." buttons {"OK"}`;
                         
                         if (tarifasDelPeaje.length > 0) {
                             const ws = XLSX.utils.json_to_sheet(tarifasDelPeaje);
-                            XLSX.utils.book_append_sheet(analisisWb, ws, peaje.replace('.', '_'));
+                            // Limpiar nombre de peaje para nombre de hoja
+                            const nombreHoja = peaje.replace(/\./g, '_').replace(/\s/g, '_');
+                            XLSX.utils.book_append_sheet(analisisWb, ws, nombreHoja);
+                            console.log(`Hoja creada: ${nombreHoja} con ${tarifasDelPeaje.length} tarifas`);
                         }
                     }
                     
