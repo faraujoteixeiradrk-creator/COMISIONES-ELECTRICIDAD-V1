@@ -1773,32 +1773,25 @@ Revisa y envía cada uno." buttons {"OK"}`;
                 // ========================================
                 
                 if (processedWorkbook) {
-                    // Leer hoja DATOS del workbook procesado
-                    const datosSheet = processedWorkbook.Sheets['DATOS'];
+                    // Usar las tarifas que ya tenemos en memoria de tarifasNuevas
                     const detalleSheet = processedWorkbook.Sheets['Detalle'];
                     const tarifasNoEncontradasSheet = processedWorkbook.Sheets['TARIFAS_NO_ENCONTRADAS'];
                     
-                    // Extraer tarifas de DATOS
-                    const datosData = XLSX.utils.sheet_to_json(datosSheet, { header: 1 });
+                    // Construir mapa de tarifas configuradas desde tarifasNuevas (global)
                     const tarifasConfiguradasMap = {};
                     
-                    console.log('=== TARIFAS EN DATOS ===');
-                    for (let i = 1; i < datosData.length; i++) {
-                        const row = datosData[i];
-                        if (!row[0] || row[1] === 'X') continue;
-                        
-                        const tarifa = String(row[0]).trim();
-                        const comision = parseFloat(row[1]) || 0;
-                        const tipo = row[2] ? String(row[2]).toUpperCase().trim() : 'REPARTO';
-                        
-                        const key = tarifa.toUpperCase();
+                    console.log('=== TARIFAS CONFIGURADAS (desde memoria) ===');
+                    for (const [nombreTarifa, info] of Object.entries(tarifasNuevas)) {
+                        const key = nombreTarifa.toUpperCase().trim();
                         tarifasConfiguradasMap[key] = {
-                            tarifa: tarifa,
-                            comision: comision,
-                            tipo: tipo
+                            tarifa: nombreTarifa,
+                            comision: info.comision || 0,
+                            tipo: info.tipo || 'REPARTO'
                         };
                         
-                        console.log(`  "${key}" → Comisión: ${comision}, Tipo: ${tipo}`);
+                        if (Object.keys(tarifasConfiguradasMap).length <= 10) {
+                            console.log(`  "${key}" → Comisión: ${info.comision}, Tipo: ${info.tipo}`);
+                        }
                     }
                     console.log(`Total tarifas configuradas: ${Object.keys(tarifasConfiguradasMap).length}`);
                     
