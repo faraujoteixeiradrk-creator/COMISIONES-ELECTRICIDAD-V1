@@ -1894,22 +1894,45 @@ Revisa y envía cada uno." buttons {"OK"}`;
                         // Buscar comisión y tipo - primero coincidencia exacta
                         let comision = 0;
                         let tipo = 'REPARTO';
+                        let encontrado = false;
                         
                         if (tarifasConfiguradasMap[key]) {
                             // Coincidencia exacta
                             comision = tarifasConfiguradasMap[key].comision;
                             tipo = tarifasConfiguradasMap[key].tipo;
+                            encontrado = true;
                         } else {
-                            // Buscar coincidencia parcial
-                            for (const [configKey, configInfo] of Object.entries(tarifasConfiguradasMap)) {
-                                // Si el nombre de la tarifa activa CONTIENE el nombre configurado
-                                if (key.includes(configKey) || configKey.includes(key)) {
-                                    comision = configInfo.comision;
-                                    tipo = configInfo.tipo;
-                                    console.log(`Coincidencia parcial: "${key}" ↔ "${configKey}" → ${comision}`);
+                            // Buscar por inicio de nombre (más específico primero)
+                            // Ordenar por longitud descendente para buscar primero las más largas
+                            const configKeys = Object.keys(tarifasConfiguradasMap).sort((a, b) => b.length - a.length);
+                            
+                            for (const configKey of configKeys) {
+                                // Si la tarifa activa EMPIEZA con la tarifa configurada
+                                if (key.startsWith(configKey)) {
+                                    comision = tarifasConfiguradasMap[configKey].comision;
+                                    tipo = tarifasConfiguradasMap[configKey].tipo;
+                                    console.log(`✓ Coincidencia: "${key}" empieza con "${configKey}" → Comisión: ${comision}, Tipo: ${tipo}`);
+                                    encontrado = true;
                                     break;
                                 }
                             }
+                            
+                            // Si aún no se encontró, buscar si la tarifa configurada está contenida
+                            if (!encontrado) {
+                                for (const configKey of configKeys) {
+                                    if (key.includes(configKey)) {
+                                        comision = tarifasConfiguradasMap[configKey].comision;
+                                        tipo = tarifasConfiguradasMap[configKey].tipo;
+                                        console.log(`~ Coincidencia parcial: "${key}" contiene "${configKey}" → Comisión: ${comision}, Tipo: ${tipo}`);
+                                        encontrado = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        if (!encontrado) {
+                            console.warn(`✗ No se encontró comisión para: "${key}"`);
                         }
                         
                         if (todasLasTarifasElec.has(key)) {
