@@ -2062,9 +2062,11 @@ Revisa y envía cada uno." buttons {"OK"}`;
                     }
                     
                     resumenElec.sort((a, b) => {
+                        // Primero por estado (ACTIVA primero)
                         if (a.Estado === 'ACTIVA' && b.Estado !== 'ACTIVA') return -1;
                         if (a.Estado !== 'ACTIVA' && b.Estado === 'ACTIVA') return 1;
-                        return a.Tarifa.localeCompare(b.Tarifa);
+                        // Luego por número de facturas (mayor a menor)
+                        return b.Facturas - a.Facturas;
                     });
                     
                     const wsResumenElec = XLSX.utils.json_to_sheet(resumenElec);
@@ -2075,11 +2077,15 @@ Revisa y envía cada uno." buttons {"OK"}`;
                 // ANÁLISIS DE GAS
                 // ========================================
                 
-                if (processedWorkbookGas) {
-                    // Similar al de electricidad pero para GAS
-                    const datosGasSheet = processedWorkbookGas.Sheets['DATOS GAS'] || processedWorkbookGas.Sheets['DATOSGAS'];
+                if (processedWorkbookGas && originalWorkbook) {
+                    // Leer DATOSGAS del workbook ORIGINAL
+                    const datosGasSheet = originalWorkbook.Sheets['DATOSGAS'];
                     const detalleGasSheet = processedWorkbookGas.Sheets['Detalle GAS'];
                     const tarifasGasNoEncontradasSheet = processedWorkbookGas.Sheets['TARIFAS_GAS_NO_ENCONTRADAS'];
+                    
+                    if (!datosGasSheet) {
+                        console.log('⚠️ No se encontró hoja DATOSGAS en el workbook original');
+                    }
                     
                     // Para GAS necesitamos leer la estructura de DATOSGAS que tiene las tarifas en filas y peajes en columnas
                     const tarifasGasConfiguradasMap = {};
@@ -2087,9 +2093,12 @@ Revisa y envía cada uno." buttons {"OK"}`;
                     if (datosGasSheet) {
                         const datosGasRaw = XLSX.utils.sheet_to_json(datosGasSheet, { header: 1 });
                         
+                        console.log('=== TARIFAS GAS EN DATOSGAS (original) ===');
+                        console.log('Total filas:', datosGasRaw.length);
+                        
                         for (let i = 1; i < datosGasRaw.length; i++) {
                             const row = datosGasRaw[i];
-                            if (!row[0]) continue;
+                            if (!row || !row[0]) continue;
                             
                             const tarifa = String(row[0]).trim();
                             const tarifaUpper = tarifa.toUpperCase();
@@ -2098,13 +2107,23 @@ Revisa y envía cada uno." buttons {"OK"}`;
                                 tarifa: tarifa,
                                 comisiones: {
                                     'RL.1': parseFloat(row[1]) || 0,
+                                    'RL. 1': parseFloat(row[1]) || 0,
                                     'RL.2': parseFloat(row[2]) || 0,
+                                    'RL. 2': parseFloat(row[2]) || 0,
                                     'RL.3': parseFloat(row[3]) || 0,
+                                    'RL. 3': parseFloat(row[3]) || 0,
                                     'RL.4': parseFloat(row[4]) || 0,
-                                    'RL.5': parseFloat(row[5]) || 0
+                                    'RL. 4': parseFloat(row[4]) || 0,
+                                    'RL.5': parseFloat(row[5]) || 0,
+                                    'RL. 5': parseFloat(row[5]) || 0
                                 }
                             };
+                            
+                            if (i <= 10) {
+                                console.log(`  "${tarifaUpper}" → RL.1:${row[1]}, RL.2:${row[2]}, RL.3:${row[3]}, RL.4:${row[4]}, RL.5:${row[5]}`);
+                            }
                         }
+                        console.log(`Total tarifas GAS configuradas: ${Object.keys(tarifasGasConfiguradasMap).length}`);
                     }
                     
                     // Extraer del detalle GAS
@@ -2231,9 +2250,11 @@ Revisa y envía cada uno." buttons {"OK"}`;
                     }
                     
                     resumenGas.sort((a, b) => {
+                        // Primero por estado (ACTIVA primero)
                         if (a.Estado === 'ACTIVA' && b.Estado !== 'ACTIVA') return -1;
                         if (a.Estado !== 'ACTIVA' && b.Estado === 'ACTIVA') return 1;
-                        return a.Tarifa.localeCompare(b.Tarifa);
+                        // Luego por número de facturas (mayor a menor)
+                        return b.Facturas - a.Facturas;
                     });
                     
                     const wsResumenGas = XLSX.utils.json_to_sheet(resumenGas);
