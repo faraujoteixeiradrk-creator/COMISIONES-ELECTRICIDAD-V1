@@ -1795,6 +1795,7 @@ Revisa y envía cada uno." buttons {"OK"}`;
                     
                     console.log('=== TARIFAS EN DATOS (original) ===');
                     console.log('Total filas en DATOS:', datosData.length);
+                    console.log('Primeras 20 tarifas con detalle:');
                     
                     for (let i = 1; i < datosData.length; i++) {
                         const row = datosData[i];
@@ -1819,8 +1820,8 @@ Revisa y envía cada uno." buttons {"OK"}`;
                             tipo: tipoStr
                         };
                         
-                        if (Object.keys(tarifasConfiguradasMap).length <= 10) {
-                            console.log(`  "${key}" → Comisión: ${comisionNum}, Tipo: ${tipoStr}`);
+                        if (Object.keys(tarifasConfiguradasMap).length <= 20) {
+                            console.log(`  [${i}] "${key}" → Comisión: ${comisionNum}, Tipo RAW: "${tipo}" → Tipo PROCESADO: "${tipoStr}"`);
                         }
                     }
                     console.log(`Total tarifas configuradas: ${Object.keys(tarifasConfiguradasMap).length}`);
