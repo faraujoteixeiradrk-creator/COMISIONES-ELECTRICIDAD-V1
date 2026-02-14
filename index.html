@@ -1782,6 +1782,7 @@ Revisa y envía cada uno." buttons {"OK"}`;
                     const datosData = XLSX.utils.sheet_to_json(datosSheet, { header: 1 });
                     const tarifasConfiguradasMap = {};
                     
+                    console.log('=== TARIFAS EN DATOS ===');
                     for (let i = 1; i < datosData.length; i++) {
                         const row = datosData[i];
                         if (!row[0] || row[1] === 'X') continue;
@@ -1790,12 +1791,16 @@ Revisa y envía cada uno." buttons {"OK"}`;
                         const comision = parseFloat(row[1]) || 0;
                         const tipo = row[2] ? String(row[2]).toUpperCase().trim() : 'REPARTO';
                         
-                        tarifasConfiguradasMap[tarifa.toUpperCase()] = {
+                        const key = tarifa.toUpperCase();
+                        tarifasConfiguradasMap[key] = {
                             tarifa: tarifa,
                             comision: comision,
                             tipo: tipo
                         };
+                        
+                        console.log(`  "${key}" → Comisión: ${comision}, Tipo: ${tipo}`);
                     }
+                    console.log(`Total tarifas configuradas: ${Object.keys(tarifasConfiguradasMap).length}`);
                     
                     // Extraer tarifas del Detalle (facturas reales)
                     const detalleData = XLSX.utils.sheet_to_json(detalleSheet);
@@ -1803,12 +1808,15 @@ Revisa y envía cada uno." buttons {"OK"}`;
                     const conteoPorTarifa = {};
                     const todosPeajes = new Set(); // Todos los peajes encontrados
                     
+                    console.log('=== TARIFAS EN DETALLE ===');
+                    const nombresUnicos = new Set();
                     for (const row of detalleData) {
                         const grupo = row['Grupo'];
                         const tarifaPeaje = row['Tarifa Peaje'];
                         if (!grupo || !tarifaPeaje) continue;
                         
                         const grupoUpper = String(grupo).toUpperCase().trim();
+                        nombresUnicos.add(grupoUpper);
                         const peajeNorm = String(tarifaPeaje).trim();
                         
                         todosPeajes.add(peajeNorm); // Guardar todos los peajes
@@ -1824,6 +1832,10 @@ Revisa y envía cada uno." buttons {"OK"}`;
                         const key = `${grupoUpper}|${peajeNorm}`;
                         conteoPorTarifa[key] = (conteoPorTarifa[key] || 0) + 1;
                     }
+                    
+                    console.log('Primeras 10 tarifas en Detalle:');
+                    Array.from(nombresUnicos).slice(0, 10).forEach(n => console.log(`  "${n}"`));
+                    console.log(`Total tarifas únicas en Detalle: ${nombresUnicos.size}`);
                     
                     // Extraer tarifas no encontradas
                     const tarifasNoEncontradasMap = {};
@@ -1852,17 +1864,41 @@ Revisa y envía cada uno." buttons {"OK"}`;
                         });
                     }
                     
-                    // De activas
+                    // De activas - buscar comisión de forma flexible
                     for (const [key, info] of Object.entries(tarifasActivasMap)) {
                         const peajes = Array.from(info.peajes);
+                        
+                        // Buscar comisión y tipo - primero coincidencia exacta
+                        let comision = 0;
+                        let tipo = 'REPARTO';
+                        
+                        if (tarifasConfiguradasMap[key]) {
+                            // Coincidencia exacta
+                            comision = tarifasConfiguradasMap[key].comision;
+                            tipo = tarifasConfiguradasMap[key].tipo;
+                        } else {
+                            // Buscar coincidencia parcial
+                            for (const [configKey, configInfo] of Object.entries(tarifasConfiguradasMap)) {
+                                // Si el nombre de la tarifa activa CONTIENE el nombre configurado
+                                if (key.includes(configKey) || configKey.includes(key)) {
+                                    comision = configInfo.comision;
+                                    tipo = configInfo.tipo;
+                                    console.log(`Coincidencia parcial: "${key}" ↔ "${configKey}" → ${comision}`);
+                                    break;
+                                }
+                            }
+                        }
+                        
                         if (todasLasTarifasElec.has(key)) {
                             todasLasTarifasElec.get(key).estado = 'ACTIVA';
                             todasLasTarifasElec.get(key).peajes = peajes;
+                            todasLasTarifasElec.get(key).comision = comision;
+                            todasLasTarifasElec.get(key).tipo = tipo;
                         } else {
                             todasLasTarifasElec.set(key, {
                                 tarifa: info.grupo,
-                                comision: 0,
-                                tipo: 'REPARTO',
+                                comision: comision,
+                                tipo: tipo,
                                 estado: 'ACTIVA',
                                 peajes: peajes,
                                 facturas: 0
