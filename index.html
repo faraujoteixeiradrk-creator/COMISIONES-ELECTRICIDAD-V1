@@ -232,6 +232,9 @@
         let processedDataByGroupGas = null;
         let allProcessedDataGas = null;
         
+        // Workbook original (para análisis)
+        let originalWorkbook = null;
+        
         // Nuevas estructuras para datos no encontrados (Electricidad)
         let tarifasNuevas = {}; // {nombreTarifa: {comision, tipo}}
         let comercialesNuevos = {}; // {nombreComercial: {numero, porcentaje}}
@@ -434,6 +437,9 @@
             reader.onload = async (e) => {
                 try {
                     const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+                    
+                    // Guardar workbook original para análisis posterior
+                    originalWorkbook = wb;
                     await processExcel(wb);
                     await processGas(wb);
                 } catch (error) {
@@ -1772,25 +1778,49 @@ Revisa y envía cada uno." buttons {"OK"}`;
                 // ANÁLISIS DE ELECTRICIDAD
                 // ========================================
                 
-                if (processedWorkbook) {
-                    // Usar las tarifas que ya tenemos en memoria de tarifasNuevas
+                if (processedWorkbook && originalWorkbook) {
+                    // Leer hoja DATOS del workbook ORIGINAL
+                    const datosSheet = originalWorkbook.Sheets['DATOS'];
                     const detalleSheet = processedWorkbook.Sheets['Detalle'];
                     const tarifasNoEncontradasSheet = processedWorkbook.Sheets['TARIFAS_NO_ENCONTRADAS'];
                     
-                    // Construir mapa de tarifas configuradas desde tarifasNuevas (global)
+                    if (!datosSheet) {
+                        console.error('No se encontró hoja DATOS en el workbook original');
+                        return;
+                    }
+                    
+                    // Extraer tarifas de DATOS (workbook original)
+                    const datosData = XLSX.utils.sheet_to_json(datosSheet, { header: 1 });
                     const tarifasConfiguradasMap = {};
                     
-                    console.log('=== TARIFAS CONFIGURADAS (desde memoria) ===');
-                    for (const [nombreTarifa, info] of Object.entries(tarifasNuevas)) {
-                        const key = nombreTarifa.toUpperCase().trim();
+                    console.log('=== TARIFAS EN DATOS (original) ===');
+                    console.log('Total filas en DATOS:', datosData.length);
+                    
+                    for (let i = 1; i < datosData.length; i++) {
+                        const row = datosData[i];
+                        if (!row || row.length < 2) continue;
+                        
+                        const tarifa = row[0];
+                        const comision = row[1];
+                        const tipo = row[2];
+                        
+                        // Validar que no sea fila vacía o encabezado
+                        if (!tarifa || tarifa === 'TARIFA' || tarifa === 'X') continue;
+                        if (comision === 'COMISION' || comision === 'X') continue;
+                        
+                        const tarifaStr = String(tarifa).trim();
+                        const comisionNum = parseFloat(comision) || 0;
+                        const tipoStr = tipo ? String(tipo).toUpperCase().trim() : 'REPARTO';
+                        
+                        const key = tarifaStr.toUpperCase();
                         tarifasConfiguradasMap[key] = {
-                            tarifa: nombreTarifa,
-                            comision: info.comision || 0,
-                            tipo: info.tipo || 'REPARTO'
+                            tarifa: tarifaStr,
+                            comision: comisionNum,
+                            tipo: tipoStr
                         };
                         
                         if (Object.keys(tarifasConfiguradasMap).length <= 10) {
-                            console.log(`  "${key}" → Comisión: ${info.comision}, Tipo: ${info.tipo}`);
+                            console.log(`  "${key}" → Comisión: ${comisionNum}, Tipo: ${tipoStr}`);
                         }
                     }
                     console.log(`Total tarifas configuradas: ${Object.keys(tarifasConfiguradasMap).length}`);
