@@ -1930,6 +1930,40 @@ Revisa y envía cada uno." buttons {"OK"}`;
                                     }
                                 }
                             }
+                            
+                            // EXTRACCIÓN INTELIGENTE si no se encontró
+                            if (!encontrado) {
+                                // Para INDEX PLUS → extraer número y tipo TOTAL
+                                if (key.startsWith('INDEX PLUS')) {
+                                    const match = key.match(/INDEX PLUS (\d+)/);
+                                    if (match) {
+                                        comision = parseInt(match[1]);
+                                        tipo = 'TOTAL';
+                                        console.log(`🔍 Extraído INDEX PLUS: "${key}" → ${comision}, TOTAL`);
+                                        encontrado = true;
+                                    }
+                                }
+                                // Para INDEXADA → extraer número
+                                else if (key.startsWith('INDEXADA')) {
+                                    const match = key.match(/INDEXADA (\d+)/);
+                                    if (match) {
+                                        comision = parseInt(match[1]);
+                                        tipo = 'REPARTO';
+                                        console.log(`🔍 Extraído INDEXADA: "${key}" → ${comision}, REPARTO`);
+                                        encontrado = true;
+                                    }
+                                }
+                                // Para DRK FIJO RUNNING → extraer número
+                                else if (key.startsWith('DRK FIJO')) {
+                                    const match = key.match(/DRK FIJO (?:RUNNING )?(\d+)/);
+                                    if (match) {
+                                        comision = parseInt(match[1]);
+                                        tipo = 'REPARTO';
+                                        console.log(`🔍 Extraído DRK FIJO: "${key}" → ${comision}, REPARTO`);
+                                        encontrado = true;
+                                    }
+                                }
+                            }
                         }
                         
                         if (!encontrado) {
