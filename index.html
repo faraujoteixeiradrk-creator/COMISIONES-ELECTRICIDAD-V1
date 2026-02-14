@@ -205,6 +205,19 @@
                     3. Ejecuta el script → Outlook abrirá con todos los emails listos
                 </p>
             </div>
+            
+            <div class="download-section" id="downloadSectionAnalisis" style="display: none; margin-top: 30px; background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; border: none;">
+                <h2 style="color: white;">📊 ANÁLISIS DE TARIFAS</h2>
+                <p style="margin: 15px 0; opacity: 0.95;">Ver qué tarifas están activas y cuáles se están facturando</p>
+                <button class="download-btn" id="downloadAnalisisBtn" style="background: linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%); border: 3px solid white;">📈 Analizar Tarifas Activas</button>
+                <p style="margin-top: 15px; font-size: 0.85em; opacity: 0.9;">
+                    💡 <strong>Genera un Excel con:</strong><br>
+                    • Tarifas únicas por peaje (2.0 TD, 3.0 TD, 6.1 TD, RL.1-5)<br>
+                    • Estado: ACTIVA / CONFIGURADA / NO ENCONTRADA<br>
+                    • Tipo: REPARTO / TOTAL<br>
+                    • Número de facturas por tarifa
+                </p>
+            </div>
         </div>
     </div>
 
@@ -258,6 +271,7 @@
         document.getElementById('downloadBtn').addEventListener('click', downloadFile);
         document.getElementById('downloadByComercialBtn').addEventListener('click', downloadByComercial);
         document.getElementById('downloadScriptBtn').addEventListener('click', downloadScript);
+        document.getElementById('downloadAnalisisBtn').addEventListener('click', analizarTarifas);
         
         function showStatus(msg, type) {
             const s = document.getElementById('status');
@@ -410,6 +424,7 @@
             document.getElementById('downloadSection').style.display = 'none';
             document.getElementById('downloadSectionGas').style.display = 'none';
             document.getElementById('downloadSectionScript').style.display = 'none';
+            document.getElementById('downloadSectionAnalisis').style.display = 'none';
             document.getElementById('statsContainer').innerHTML = '';
             document.getElementById('statsContainerGas').innerHTML = '';
             document.getElementById('status').style.display = 'none';
@@ -874,6 +889,7 @@
                 showStatus(`✅ ${processed.length} facturas procesadas`, 'success');
                 document.getElementById('downloadSection').style.display = 'block';
                 document.getElementById('downloadSectionScript').style.display = 'block';
+                document.getElementById('downloadSectionAnalisis').style.display = 'block';
                 
             } catch (error) {
                 document.getElementById('loading').style.display = 'none';
@@ -1283,6 +1299,7 @@
                 showStatus('✅ GAS procesado: ' + processedGas.length + ' facturas', 'success');
                 document.getElementById('downloadSectionGas').style.display = 'block';
                 document.getElementById('downloadSectionScript').style.display = 'block';
+                document.getElementById('downloadSectionAnalisis').style.display = 'block';
                 
                 return newWbGas;
                 
@@ -1739,6 +1756,378 @@ Revisa y envía cada uno." buttons {"OK"}`;
             showStatus('✅ Script descargado correctamente', 'success');
             alert('📥 Script descargado: Enviar_Liquidaciones_Outlook.scpt\n\n✅ PASOS:\n\n1. Descarga ZIP Electricidad (botón rosa) y/o ZIP Gas (botón rojo)\n2. Haz doble clic en el archivo .scpt descargado\n3. El script buscará automáticamente los archivos\n4. Outlook abrirá con todos los emails\n\n💡 El script adjunta automáticamente:\n- Archivo electricidad si existe\n- Archivo gas si existe\n- Ambos si el comercial tiene los dos\n\n⚠️ REQUISITO (solo primera vez):\npip3 install openpyxl');
         }
+
+        function analizarTarifas() {
+            if (!processedWorkbook && !processedWorkbookGas) {
+                showStatus('❌ No hay datos procesados para analizar', 'error');
+                return;
+            }
+            
+            try {
+                showStatus('⏳ Analizando tarifas activas...', 'success');
+                
+                const analisisWb = XLSX.utils.book_new();
+                
+                // ========================================
+                // ANÁLISIS DE ELECTRICIDAD
+                // ========================================
+                
+                if (processedWorkbook) {
+                    // Leer hoja DATOS del workbook procesado
+                    const datosSheet = processedWorkbook.Sheets['DATOS'];
+                    const detalleSheet = processedWorkbook.Sheets['Detalle'];
+                    const tarifasNoEncontradasSheet = processedWorkbook.Sheets['TARIFAS_NO_ENCONTRADAS'];
+                    
+                    // Extraer tarifas de DATOS
+                    const datosData = XLSX.utils.sheet_to_json(datosSheet, { header: 1 });
+                    const tarifasConfiguradasMap = {};
+                    
+                    for (let i = 1; i < datosData.length; i++) {
+                        const row = datosData[i];
+                        if (!row[0] || row[1] === 'X') continue;
+                        
+                        const tarifa = String(row[0]).trim();
+                        const comision = parseFloat(row[1]) || 0;
+                        const tipo = row[2] ? String(row[2]).toUpperCase().trim() : 'REPARTO';
+                        
+                        tarifasConfiguradasMap[tarifa.toUpperCase()] = {
+                            tarifa: tarifa,
+                            comision: comision,
+                            tipo: tipo
+                        };
+                    }
+                    
+                    // Extraer tarifas del Detalle (facturas reales)
+                    const detalleData = XLSX.utils.sheet_to_json(detalleSheet);
+                    const tarifasActivasMap = {};
+                    const conteoPorTarifa = {};
+                    
+                    for (const row of detalleData) {
+                        const grupo = row['Grupo'];
+                        const tarifaPeaje = row['Tarifa Peaje'];
+                        if (!grupo || !tarifaPeaje) continue;
+                        
+                        const grupoUpper = String(grupo).toUpperCase().trim();
+                        const peajeNorm = String(tarifaPeaje).trim();
+                        
+                        if (!tarifasActivasMap[grupoUpper]) {
+                            tarifasActivasMap[grupoUpper] = {
+                                grupo: grupo,
+                                peajes: new Set()
+                            };
+                        }
+                        tarifasActivasMap[grupoUpper].peajes.add(peajeNorm);
+                        
+                        const key = `${grupoUpper}|${peajeNorm}`;
+                        conteoPorTarifa[key] = (conteoPorTarifa[key] || 0) + 1;
+                    }
+                    
+                    // Extraer tarifas no encontradas
+                    const tarifasNoEncontradasMap = {};
+                    if (tarifasNoEncontradasSheet) {
+                        const noEncontradasData = XLSX.utils.sheet_to_json(tarifasNoEncontradasSheet);
+                        for (const row of noEncontradasData) {
+                            const tarifa = row['Tarifa'];
+                            if (tarifa) {
+                                tarifasNoEncontradasMap[String(tarifa).toUpperCase().trim()] = true;
+                            }
+                        }
+                    }
+                    
+                    // Combinar toda la información
+                    const todasLasTarifasElec = new Map();
+                    
+                    // De configuradas
+                    for (const [key, info] of Object.entries(tarifasConfiguradasMap)) {
+                        todasLasTarifasElec.set(key, {
+                            tarifa: info.tarifa,
+                            comision: info.comision,
+                            tipo: info.tipo,
+                            estado: 'CONFIGURADA',
+                            peajes: [],
+                            facturas: 0
+                        });
+                    }
+                    
+                    // De activas
+                    for (const [key, info] of Object.entries(tarifasActivasMap)) {
+                        const peajes = Array.from(info.peajes);
+                        if (todasLasTarifasElec.has(key)) {
+                            todasLasTarifasElec.get(key).estado = 'ACTIVA';
+                            todasLasTarifasElec.get(key).peajes = peajes;
+                        } else {
+                            todasLasTarifasElec.set(key, {
+                                tarifa: info.grupo,
+                                comision: 0,
+                                tipo: 'REPARTO',
+                                estado: 'ACTIVA',
+                                peajes: peajes,
+                                facturas: 0
+                            });
+                        }
+                    }
+                    
+                    // De no encontradas
+                    for (const key of Object.keys(tarifasNoEncontradasMap)) {
+                        if (!todasLasTarifasElec.has(key)) {
+                            todasLasTarifasElec.set(key, {
+                                tarifa: key,
+                                comision: 0,
+                                tipo: 'REPARTO',
+                                estado: 'NO ENCONTRADA',
+                                peajes: [],
+                                facturas: 0
+                            });
+                        }
+                    }
+                    
+                    // Agregar conteo de facturas
+                    for (const [keyTarifa, info] of todasLasTarifasElec.entries()) {
+                        let totalFacturas = 0;
+                        for (const peaje of info.peajes) {
+                            const key = `${keyTarifa}|${peaje}`;
+                            totalFacturas += (conteoPorTarifa[key] || 0);
+                        }
+                        info.facturas = totalFacturas;
+                    }
+                    
+                    // Clasificar por peaje
+                    const peajes = ['2.0 TD', '3.0 TD', '6.1 TD'];
+                    
+                    for (const peaje of peajes) {
+                        const tarifasDelPeaje = [];
+                        
+                        for (const [key, info] of todasLasTarifasElec.entries()) {
+                            if (info.peajes.includes(peaje)) {
+                                const keyConteo = `${key}|${peaje}`;
+                                tarifasDelPeaje.push({
+                                    'Tarifa': info.tarifa,
+                                    'Peaje': peaje,
+                                    'Tipo': info.tipo,
+                                    'Comisión': info.comision,
+                                    'Estado': info.estado,
+                                    'Facturas': conteoPorTarifa[keyConteo] || 0
+                                });
+                            }
+                        }
+                        
+                        // Ordenar por estado (ACTIVA primero) y luego por nombre
+                        tarifasDelPeaje.sort((a, b) => {
+                            if (a.Estado === 'ACTIVA' && b.Estado !== 'ACTIVA') return -1;
+                            if (a.Estado !== 'ACTIVA' && b.Estado === 'ACTIVA') return 1;
+                            return a.Tarifa.localeCompare(b.Tarifa);
+                        });
+                        
+                        if (tarifasDelPeaje.length > 0) {
+                            const ws = XLSX.utils.json_to_sheet(tarifasDelPeaje);
+                            XLSX.utils.book_append_sheet(analisisWb, ws, peaje.replace('.', '_'));
+                        }
+                    }
+                    
+                    // Hoja resumen electricidad
+                    const resumenElec = [];
+                    for (const [key, info] of todasLasTarifasElec.entries()) {
+                        resumenElec.push({
+                            'Tarifa': info.tarifa,
+                            'Tipo': info.tipo,
+                            'Comisión': info.comision,
+                            'Estado': info.estado,
+                            'Peajes': info.peajes.join(', '),
+                            'Facturas': info.facturas
+                        });
+                    }
+                    
+                    resumenElec.sort((a, b) => {
+                        if (a.Estado === 'ACTIVA' && b.Estado !== 'ACTIVA') return -1;
+                        if (a.Estado !== 'ACTIVA' && b.Estado === 'ACTIVA') return 1;
+                        return a.Tarifa.localeCompare(b.Tarifa);
+                    });
+                    
+                    const wsResumenElec = XLSX.utils.json_to_sheet(resumenElec);
+                    XLSX.utils.book_append_sheet(analisisWb, wsResumenElec, 'Resumen Electricidad');
+                }
+                
+                // ========================================
+                // ANÁLISIS DE GAS
+                // ========================================
+                
+                if (processedWorkbookGas) {
+                    // Similar al de electricidad pero para GAS
+                    const datosGasSheet = processedWorkbookGas.Sheets['DATOS GAS'] || processedWorkbookGas.Sheets['DATOSGAS'];
+                    const detalleGasSheet = processedWorkbookGas.Sheets['Detalle GAS'];
+                    const tarifasGasNoEncontradasSheet = processedWorkbookGas.Sheets['TARIFAS_GAS_NO_ENCONTRADAS'];
+                    
+                    // Para GAS necesitamos leer la estructura de DATOSGAS que tiene las tarifas en filas y peajes en columnas
+                    const tarifasGasConfiguradasMap = {};
+                    
+                    if (datosGasSheet) {
+                        const datosGasRaw = XLSX.utils.sheet_to_json(datosGasSheet, { header: 1 });
+                        
+                        for (let i = 1; i < datosGasRaw.length; i++) {
+                            const row = datosGasRaw[i];
+                            if (!row[0]) continue;
+                            
+                            const tarifa = String(row[0]).trim();
+                            const tarifaUpper = tarifa.toUpperCase();
+                            
+                            tarifasGasConfiguradasMap[tarifaUpper] = {
+                                tarifa: tarifa,
+                                comisiones: {
+                                    'RL.1': parseFloat(row[1]) || 0,
+                                    'RL.2': parseFloat(row[2]) || 0,
+                                    'RL.3': parseFloat(row[3]) || 0,
+                                    'RL.4': parseFloat(row[4]) || 0,
+                                    'RL.5': parseFloat(row[5]) || 0
+                                }
+                            };
+                        }
+                    }
+                    
+                    // Extraer del detalle GAS
+                    const tarifasActivasGasMap = {};
+                    const conteoPorTarifaGas = {};
+                    
+                    if (detalleGasSheet) {
+                        const detalleGasData = XLSX.utils.sheet_to_json(detalleGasSheet);
+                        
+                        for (const row of detalleGasData) {
+                            let grupo = row['Grupo'];
+                            const tarifaPeaje = row['Tarifa Peaje'];
+                            if (!grupo || !tarifaPeaje) continue;
+                            
+                            // Limpiar número del final
+                            grupo = String(grupo).trim().replace(/\s+\d+$/, '');
+                            const grupoUpper = grupo.toUpperCase();
+                            const peajeNorm = String(tarifaPeaje).trim().toUpperCase();
+                            
+                            if (!tarifasActivasGasMap[grupoUpper]) {
+                                tarifasActivasGasMap[grupoUpper] = {
+                                    grupo: grupo,
+                                    peajes: new Set()
+                                };
+                            }
+                            tarifasActivasGasMap[grupoUpper].peajes.add(peajeNorm);
+                            
+                            const key = `${grupoUpper}|${peajeNorm}`;
+                            conteoPorTarifaGas[key] = (conteoPorTarifaGas[key] || 0) + 1;
+                        }
+                    }
+                    
+                    // Combinar información de GAS
+                    const todasLasTarifasGas = new Map();
+                    
+                    // De configuradas
+                    for (const [key, info] of Object.entries(tarifasGasConfiguradasMap)) {
+                        todasLasTarifasGas.set(key, {
+                            tarifa: info.tarifa,
+                            comisiones: info.comisiones,
+                            estado: 'CONFIGURADA',
+                            peajes: [],
+                            facturas: 0
+                        });
+                    }
+                    
+                    // De activas
+                    for (const [key, info] of Object.entries(tarifasActivasGasMap)) {
+                        const peajes = Array.from(info.peajes);
+                        if (todasLasTarifasGas.has(key)) {
+                            todasLasTarifasGas.get(key).estado = 'ACTIVA';
+                            todasLasTarifasGas.get(key).peajes = peajes;
+                        } else {
+                            todasLasTarifasGas.set(key, {
+                                tarifa: info.grupo,
+                                comisiones: {},
+                                estado: 'ACTIVA',
+                                peajes: peajes,
+                                facturas: 0
+                            });
+                        }
+                    }
+                    
+                    // Agregar conteo de facturas
+                    for (const [keyTarifa, info] of todasLasTarifasGas.entries()) {
+                        let totalFacturas = 0;
+                        for (const peaje of info.peajes) {
+                            const key = `${keyTarifa}|${peaje}`;
+                            totalFacturas += (conteoPorTarifaGas[key] || 0);
+                        }
+                        info.facturas = totalFacturas;
+                    }
+                    
+                    // Clasificar por peaje GAS
+                    const peajesGas = ['RL.1', 'RL.2', 'RL.3', 'RL.4', 'RL.5', 'RL. 1', 'RL. 2', 'RL. 3', 'RL. 4', 'RL. 5'];
+                    const peajesUnicos = new Set();
+                    
+                    for (const [key, info] of todasLasTarifasGas.entries()) {
+                        for (const peaje of info.peajes) {
+                            peajesUnicos.add(peaje);
+                        }
+                    }
+                    
+                    for (const peaje of peajesUnicos) {
+                        const tarifasDelPeaje = [];
+                        
+                        for (const [key, info] of todasLasTarifasGas.entries()) {
+                            if (info.peajes.includes(peaje)) {
+                                const keyConteo = `${key}|${peaje}`;
+                                const comision = info.comisiones ? info.comisiones[peaje] || 0 : 0;
+                                
+                                tarifasDelPeaje.push({
+                                    'Tarifa': info.tarifa,
+                                    'Peaje': peaje,
+                                    'Comisión': comision,
+                                    'Estado': info.estado,
+                                    'Facturas': conteoPorTarifaGas[keyConteo] || 0
+                                });
+                            }
+                        }
+                        
+                        tarifasDelPeaje.sort((a, b) => {
+                            if (a.Estado === 'ACTIVA' && b.Estado !== 'ACTIVA') return -1;
+                            if (a.Estado !== 'ACTIVA' && b.Estado === 'ACTIVA') return 1;
+                            return a.Tarifa.localeCompare(b.Tarifa);
+                        });
+                        
+                        if (tarifasDelPeaje.length > 0) {
+                            const ws = XLSX.utils.json_to_sheet(tarifasDelPeaje);
+                            const nombreHoja = peaje.replace('.', '_').replace(' ', '');
+                            XLSX.utils.book_append_sheet(analisisWb, ws, nombreHoja);
+                        }
+                    }
+                    
+                    // Hoja resumen GAS
+                    const resumenGas = [];
+                    for (const [key, info] of todasLasTarifasGas.entries()) {
+                        resumenGas.push({
+                            'Tarifa': info.tarifa,
+                            'Estado': info.estado,
+                            'Peajes': info.peajes.join(', '),
+                            'Facturas': info.facturas
+                        });
+                    }
+                    
+                    resumenGas.sort((a, b) => {
+                        if (a.Estado === 'ACTIVA' && b.Estado !== 'ACTIVA') return -1;
+                        if (a.Estado !== 'ACTIVA' && b.Estado === 'ACTIVA') return 1;
+                        return a.Tarifa.localeCompare(b.Tarifa);
+                    });
+                    
+                    const wsResumenGas = XLSX.utils.json_to_sheet(resumenGas);
+                    XLSX.utils.book_append_sheet(analisisWb, wsResumenGas, 'Resumen Gas');
+                }
+                
+                // Descargar el archivo
+                const timestamp = new Date().toISOString().split('T')[0];
+                XLSX.writeFile(analisisWb, `Analisis_Tarifas_${timestamp}.xlsx`);
+                
+                showStatus('✅ Análisis de tarifas generado', 'success');
+                
+            } catch (error) {
+                console.error('Error en análisis:', error);
+                showStatus('❌ Error generando análisis: ' + error.message, 'error');
+            }
+        }
+
     </script>
 </body>
 </html>
