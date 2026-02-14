@@ -1944,8 +1944,8 @@ Revisa y envía cada uno." buttons {"OK"}`;
                                     }
                                 }
                                 // Para INDEXADA → extraer número
-                                else if (key.startsWith('INDEXADA')) {
-                                    const match = key.match(/INDEXADA (\d+)/);
+                                else if (key.startsWith('INDEXADA') || key.startsWith('INDEXADO')) {
+                                    const match = key.match(/INDEXAD[OA] (\d+)/);
                                     if (match) {
                                         comision = parseInt(match[1]);
                                         tipo = 'REPARTO';
@@ -1955,11 +1955,41 @@ Revisa y envía cada uno." buttons {"OK"}`;
                                 }
                                 // Para DRK FIJO RUNNING → extraer número
                                 else if (key.startsWith('DRK FIJO')) {
-                                    const match = key.match(/DRK FIJO (?:RUNNING )?(\d+)/);
+                                    const match = key.match(/DRK FIJO (?:RUNNING |JUAN |INCLAN )?(\d+)/);
                                     if (match) {
                                         comision = parseInt(match[1]);
                                         tipo = 'REPARTO';
                                         console.log(`🔍 Extraído DRK FIJO: "${key}" → ${comision}, REPARTO`);
+                                        encontrado = true;
+                                    }
+                                }
+                                // Para INDEX → extraer número (sin PLUS)
+                                else if (key.startsWith('INDEX ') && !key.startsWith('INDEX PLUS')) {
+                                    const match = key.match(/INDEX (\d+)/);
+                                    if (match) {
+                                        comision = parseInt(match[1]);
+                                        tipo = 'REPARTO';
+                                        console.log(`🔍 Extraído INDEX: "${key}" → ${comision}, REPARTO`);
+                                        encontrado = true;
+                                    }
+                                }
+                                // Para FEE → extraer número
+                                else if (key.includes('FEE')) {
+                                    const match = key.match(/FEE (\d+)/);
+                                    if (match) {
+                                        comision = parseInt(match[1]);
+                                        tipo = 'REPARTO';
+                                        console.log(`🔍 Extraído FEE: "${key}" → ${comision}, REPARTO`);
+                                        encontrado = true;
+                                    }
+                                }
+                                // GENÉRICO: Si tiene un número al principio o después de un espacio
+                                if (!encontrado) {
+                                    const matchGenerico = key.match(/\b(\d+)\b/);
+                                    if (matchGenerico) {
+                                        comision = parseInt(matchGenerico[1]);
+                                        tipo = 'REPARTO';
+                                        console.log(`🔍 Extraído GENÉRICO: "${key}" → ${comision}, REPARTO`);
                                         encontrado = true;
                                     }
                                 }
@@ -2032,11 +2062,11 @@ Revisa y envía cada uno." buttons {"OK"}`;
                             }
                         }
                         
-                        // Ordenar por estado (ACTIVA primero) y luego por nombre
+                        // Ordenar por estado (ACTIVA primero) y luego por número de facturas
                         tarifasDelPeaje.sort((a, b) => {
                             if (a.Estado === 'ACTIVA' && b.Estado !== 'ACTIVA') return -1;
                             if (a.Estado !== 'ACTIVA' && b.Estado === 'ACTIVA') return 1;
-                            return a.Tarifa.localeCompare(b.Tarifa);
+                            return b.Facturas - a.Facturas; // Mayor a menor
                         });
                         
                         if (tarifasDelPeaje.length > 0) {
@@ -2228,7 +2258,7 @@ Revisa y envía cada uno." buttons {"OK"}`;
                         tarifasDelPeaje.sort((a, b) => {
                             if (a.Estado === 'ACTIVA' && b.Estado !== 'ACTIVA') return -1;
                             if (a.Estado !== 'ACTIVA' && b.Estado === 'ACTIVA') return 1;
-                            return a.Tarifa.localeCompare(b.Tarifa);
+                            return b.Facturas - a.Facturas; // Mayor a menor
                         });
                         
                         if (tarifasDelPeaje.length > 0) {
