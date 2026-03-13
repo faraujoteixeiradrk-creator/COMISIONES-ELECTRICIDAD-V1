@@ -1647,11 +1647,11 @@ set carpetaDescargas to (path to downloads folder as text)
 try
     set rutaDescargas to POSIX path of carpetaDescargas
     
-    -- Buscar ZIPs más recientes
-    set comandoBuscarZIPElec to "find " & quoted form of rutaDescargas & " -name 'Comisiones_Por_Comercial_*.zip' -type f -mtime -1 | grep -v GAS | head -1"
+    -- Buscar ZIPs más recientes (sin restricción de fecha)
+    set comandoBuscarZIPElec to "find " & quoted form of rutaDescargas & " -name 'Comisiones_Por_Comercial_*.zip' -type f | grep -v GAS | sort | tail -1"
     set archivoZIPElec to do shell script comandoBuscarZIPElec
     
-    set comandoBuscarZIPGas to "find " & quoted form of rutaDescargas & " -name 'Comisiones_GAS_Por_Comercial_*.zip' -type f -mtime -1 | head -1"
+    set comandoBuscarZIPGas to "find " & quoted form of rutaDescargas & " -name 'Comisiones_GAS_Por_Comercial_*.zip' -type f | sort | tail -1"
     set archivoZIPGas to do shell script comandoBuscarZIPGas
     
     if archivoZIPElec is "" and archivoZIPGas is "" then
@@ -1665,12 +1665,17 @@ Y ejecuta este script de nuevo." buttons {"OK"} with icon stop
         return
     end if
     
-    -- Buscar Excel de comisiones
-    set comandoBuscarExcel to "find " & quoted form of rutaDescargas & " -maxdepth 1 -iname '*comision*.xlsx' -type f -mtime -1 | head -1"
-    set archivoExcel to do shell script comandoBuscarExcel
+    -- Buscar Excel: primero exacto COMISIONES.xlsx, luego fallback excluyendo ~$ y EJEMPLO*
+    set archivoExcel to do shell script "find " & quoted form of rutaDescargas & " -maxdepth 1 -name 'COMISIONES.xlsx' -type f | head -1"
     
     if archivoExcel is "" then
-        display dialog "❌ No se encontró el Excel de comisiones." buttons {"OK"} with icon stop
+        set archivoExcel to do shell script "find " & quoted form of rutaDescargas & " -maxdepth 1 -iname '*comision*.xlsx' -not -name '~$*' -not -iname 'EJEMPLO*' -type f | sort | tail -1"
+    end if
+    
+    if archivoExcel is "" then
+        display dialog "❌ No se encontró el Excel de comisiones.
+
+Pon COMISIONES.xlsx en tu carpeta Descargas." buttons {"OK"} with icon stop
         return
     end if
     
@@ -1688,7 +1693,9 @@ Y ejecuta este script de nuevo." buttons {"OK"} with icon stop
         set mensaje to mensaje & "🔥 Gas: " & nombreZIPGas & "
 "
     end if
-    set mensaje to mensaje & "
+    set nombreExcel to do shell script "basename " & quoted form of archivoExcel
+    set mensaje to mensaje & "📊 Excel: " & nombreExcel & "
+
 ¿Continuar?"
     
     display dialog mensaje buttons {"Cancelar", "Continuar"} default button 2
@@ -1897,7 +1904,7 @@ Revisa y envía cada uno." buttons {"OK"}`;
             document.body.removeChild(link);
             
             showStatus('✅ Script descargado correctamente', 'success');
-            alert('📥 Script descargado: Enviar_Liquidaciones_Outlook.scpt\n\n✅ PASOS:\n\n1. Descarga ZIP Electricidad (botón rosa) y/o ZIP Gas (botón rojo)\n2. Haz doble clic en el archivo .scpt descargado\n3. El script buscará automáticamente los archivos\n4. Outlook abrirá con todos los emails\n\n💡 El script adjunta automáticamente:\n- Archivo electricidad si existe\n- Archivo gas si existe\n- Ambos si el comercial tiene los dos\n\n⚠️ REQUISITO (solo primera vez):\npip3 install openpyxl');
+            alert('📥 Script descargado: Enviar_Liquidaciones_Outlook.scpt\n\n✅ NECESITAS EN DESCARGAS (carpeta Downloads del Mac):\n\n📦 Comisiones_Por_Comercial_YYYY-MM-DD.zip  ← botón rosa\n📦 Comisiones_GAS_Por_Comercial_YYYY-MM-DD.zip  ← botón rojo\n📊 COMISIONES.xlsx  ← tu Excel de comisiones\n\n▶️ PASOS:\n1. Descarga los ZIPs y pon el Excel en Descargas\n2. Abre el .scpt con Script Editor\n3. Pulsa Ejecutar ▶️\n4. Outlook abrirá con todos los emails\n\n⚠️ REQUISITO (solo primera vez):\npip3 install openpyxl');
         }
 
         function analizarTarifas() {
